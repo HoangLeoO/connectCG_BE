@@ -19,7 +19,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Entity
 @Table(name = "media", schema = "connectcg_be")
-public class Media {
+public class  Media {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
