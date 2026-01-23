@@ -24,14 +24,8 @@ public class JwtTokenProvider {
 
     // Tạo SecretKey chuẩn cho HS512
     private SecretKey getSigningKey() {
-        // Nếu chuỗi secret quá ngắn hoặc chưa base64, JJWT sẽ cảnh báo. 
-        // Đơn giản nhất là dùng chuỗi raw byte nếu key đủ mạnh, hoặc decode Base64
+        // app.jwtSecret PHẢI là Base64 hợp lệ
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-
-        if (keyBytes.length < 64) {
-            throw new IllegalStateException("JWT secret key phải >= 64 bytes cho HS512");
-        }
-
         return Keys.hmacShaKeyFor(keyBytes);
         // Nếu lười config Base64, dùng: return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
