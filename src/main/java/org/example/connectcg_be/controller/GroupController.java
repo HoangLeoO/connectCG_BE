@@ -3,7 +3,7 @@ package org.example.connectcg_be.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreateGroup;
-import org.example.connectcg_be.entity.Group;
+import org.example.connectcg_be.dto.GroupDTO;
 import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.GroupService;
 import org.example.connectcg_be.service.MediaService;
@@ -25,10 +25,12 @@ public class GroupController {
     MediaService mediaService;
     @Autowired
     GroupMemberService groupMemberService;
+
     @GetMapping
-    public List<Group> getAll() {
+    public List<GroupDTO> getAll() {
         return groupService.findAllGroups();
     }
+
     @PostMapping
     public ResponseEntity<Void> create(@Valid @RequestBody CreateGroup request) {
         groupService.addGroup(request, 1);
