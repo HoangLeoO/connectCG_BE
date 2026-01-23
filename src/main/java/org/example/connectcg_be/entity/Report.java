@@ -54,8 +54,7 @@ public class Report {
     @JoinColumn(name = "reviewer_id")
     private User reviewer;
 
-    @Lob
-    @Column(name = "admin_note")
+    @Column(name = "admin_note", columnDefinition = "TEXT")
     private String adminNote;
 
     @ColumnDefault("CURRENT_TIMESTAMP")
