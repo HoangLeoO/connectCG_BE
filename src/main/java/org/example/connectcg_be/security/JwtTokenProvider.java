@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 @Component
@@ -25,7 +26,12 @@ public class JwtTokenProvider {
     private SecretKey getSigningKey() {
         // Nếu chuỗi secret quá ngắn hoặc chưa base64, JJWT sẽ cảnh báo. 
         // Đơn giản nhất là dùng chuỗi raw byte nếu key đủ mạnh, hoặc decode Base64
-        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret); // Giả sử config lưu dạng Base64
+        byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
+
+        if (keyBytes.length < 64) {
+            throw new IllegalStateException("JWT secret key phải >= 64 bytes cho HS512");
+        }
+
         return Keys.hmacShaKeyFor(keyBytes);
         // Nếu lười config Base64, dùng: return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
@@ -56,8 +62,13 @@ public class JwtTokenProvider {
 
     public boolean validateToken(String authToken) {
         try {
-            Jwts.parser().verifyWith(getSigningKey()).build().parseSignedClaims(authToken);
+            Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(authToken);
             return true;
+        } catch (io.jsonwebtoken.security.SignatureException ex) {
+            log.error("JWT signature không hợp lệ (secret verify không khớp secret đã ký).");
         } catch (MalformedJwtException ex) {
             log.error("Invalid JWT token");
         } catch (ExpiredJwtException ex) {

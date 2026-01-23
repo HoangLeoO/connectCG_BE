@@ -1,17 +1,4 @@
-# drop database if exists connectcg_be;
--- create database if not exists connectcg_be;
-# use connectcg_be;
 
-
--- =============================================================================
--- Database Schema for ConnectCG
--- Version: Final v5
--- Generated Date: 2026-01-22
--- Database: MySQL
--- Description: Schema definition including Tables, Constraints, Indexes, and Relations
--- =============================================================================
-
--- Disable foreign key checks temporarily to allow table creation in any order if needed, but we will try to follow dependency order.
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- =============================================================================
