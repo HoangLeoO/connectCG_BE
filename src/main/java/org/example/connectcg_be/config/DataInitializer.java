@@ -24,7 +24,7 @@ public class DataInitializer implements CommandLineRunner {
         if (!userRepository.existsByUsername("admin")) {
             User admin = new User();
             admin.setUsername("admin");
-            admin.setEmail("admin@gmail.com");
+            admin.setEmail("admin2@gmail.com");
             // Mật khẩu là 'admin'
             admin.setPasswordHash(passwordEncoder.encode("admin"));
             admin.setRole("ADMIN");
