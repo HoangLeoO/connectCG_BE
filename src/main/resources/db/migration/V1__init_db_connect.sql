@@ -1,6 +1,7 @@
-drop database if exists connectcg_be;
-create database connectcg_be;
-use connectcg_be;
+# drop database if exists connectcg_be;
+-- create database if not exists connectcg_be;
+# use connectcg_be;
+
 
 -- =============================================================================
 -- Database Schema for ConnectCG

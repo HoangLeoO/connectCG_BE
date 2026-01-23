@@ -36,8 +36,7 @@ public class RefreshToken {
     @Column(name = "token_hash", nullable = false)
     private String tokenHash;
 
-    @Lob
-    @Column(name = "user_agent")
+    @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
     @Size(max = 45)
