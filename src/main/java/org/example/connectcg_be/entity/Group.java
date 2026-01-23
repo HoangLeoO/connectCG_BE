@@ -32,7 +32,6 @@ public class Group {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Lob
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 

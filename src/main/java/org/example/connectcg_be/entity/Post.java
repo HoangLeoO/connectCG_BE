@@ -36,8 +36,7 @@ public class Post {
     @JoinColumn(name = "group_id")
     private Group group;
 
-    @Lob
-    @Column(name = "content")
+    @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
     @Size(max = 20)
