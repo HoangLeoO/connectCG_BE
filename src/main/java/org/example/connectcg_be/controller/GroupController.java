@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreateGroup;
 import org.example.connectcg_be.dto.GroupDTO;
+import org.example.connectcg_be.dto.TungGroupMemberDTO;
 import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.GroupService;
 import org.example.connectcg_be.service.MediaService;
@@ -53,13 +54,51 @@ public class GroupController {
     }
 
     @GetMapping("/search")
-    public List<GroupDTO> searchGroups(@RequestParam("name") String name) {
-        return groupService.searchGroups(name);
+    public List<GroupDTO> searchGroups(@RequestParam("name") String name, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.searchGroups(name, userPrincipal.getId());
+    }
+
+    @GetMapping("/{id}/members")
+    public List<TungGroupMemberDTO> getMembers(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.getMembers(id, userPrincipal.getId());
+    }
+
+    @DeleteMapping("/{id}/leave")
+    public ResponseEntity<String> leaveGroup(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.leaveGroup(id, userPrincipal.getId());
+            return ResponseEntity.ok("Left group successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteGroup(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.deleteGroup(id, userPrincipal.getId());
+            return ResponseEntity.ok("Deleted group successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/invite")
+    public ResponseEntity<Void> inviteMembers(@PathVariable("id") Integer id, @RequestBody List<Integer> userIds,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        groupService.inviteMembers(id, userIds, userPrincipal.getId());
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{id}")
-    public GroupDTO getById(@PathVariable("id") Integer id) {
-        return groupService.findById(id);
+    public GroupDTO getById(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.findById(id, userPrincipal.getId());
     }
 
     @PutMapping("/{id}")
@@ -70,4 +109,79 @@ public class GroupController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{id}/accept")
+    public ResponseEntity<Void> acceptInvitation(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        groupService.acceptInvitation(id, userPrincipal.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/decline")
+    public ResponseEntity<Void> declineInvitation(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        groupService.declineInvitation(id, userPrincipal.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/invitations")
+    public List<GroupDTO> getPendingInvitations(Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.findPendingInvitations(userPrincipal.getId());
+    }
+
+    @PostMapping("/{id}/join")
+    public ResponseEntity<String> joinGroup(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.joinGroup(id, userPrincipal.getId());
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/approve/{userId}")
+    public ResponseEntity<String> approveJoinRequest(@PathVariable("id") Integer id,
+            @PathVariable("userId") Integer userId,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.approveJoinRequest(id, userId, userPrincipal.getId());
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/reject/{userId}")
+    public ResponseEntity<String> rejectJoinRequest(@PathVariable("id") Integer id,
+            @PathVariable("userId") Integer userId,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.rejectJoinRequest(id, userId, userPrincipal.getId());
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/requests")
+    public List<TungGroupMemberDTO> getPendingJoinRequests(@PathVariable("id") Integer id,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.getPendingJoinRequests(id, userPrincipal.getId());
+    }
+
+    @DeleteMapping("/{id}/kick/{userId}")
+    public ResponseEntity<String> kickMember(@PathVariable("id") Integer id, @PathVariable("userId") Integer userId,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.kickMember(id, userId, userPrincipal.getId());
+            return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

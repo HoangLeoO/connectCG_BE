@@ -37,8 +37,16 @@ public class GroupMember {
     @Column(name = "role", nullable = false, length = 20)
     private String role;
 
+    @Size(max = 20)
+    @ColumnDefault("'ACCEPTED'")
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "ACCEPTED";
+
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "joined_at")
     private Instant joinedAt;
+
+    @Column(name = "invited_by_id")
+    private Integer invitedById;
 
 }
