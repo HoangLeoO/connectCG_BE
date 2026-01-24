@@ -17,11 +17,8 @@ public class CreateGroup {
     private String description;
 
     @NotBlank(message = "Privacy là bắt buộc")
-    @Pattern(regexp = "PUBLIC|PRIVATE",
-            message = "Privacy chỉ được là PUBLIC hoặc PRIVATE"
-    )
+    @Pattern(regexp = "PUBLIC|PRIVATE", message = "Privacy chỉ được là PUBLIC hoặc PRIVATE")
     private String privacy;
 
-    @NotBlank(message = "Ảnh cover không được để trống")
     private String image;
 }

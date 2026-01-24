@@ -9,5 +9,11 @@ import java.util.List;
 
 @Repository
 public interface GroupMemberRepository extends JpaRepository<GroupMember, GroupMemberId> {
-    List<GroupMember> findAllByUserId(Integer userId);
+    List<GroupMember> findAllByIdUserId(Integer userId);
+
+    List<GroupMember> findAllByIdUserIdAndStatus(Integer userId, String status);
+
+    List<GroupMember> findAllByIdGroupId(Integer groupId);
+
+    List<GroupMember> findAllByIdGroupIdAndStatus(Integer groupId, String status);
 }

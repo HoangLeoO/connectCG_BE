@@ -1,4 +1,3 @@
-drop database if exists connectcg_be;
 create database connectcg_be;
 use connectcg_be;
 

@@ -13,13 +13,12 @@ public class GroupDTO {
     private Boolean isDeleted;
     private Instant createdAt;
 
-    // Owner Info
     private Integer ownerId;
-    private String ownerName; // username
-
-    // Cover Info
+    private String ownerName;
     private Integer coverMediaId;
-    private String image; // URL
+    private String image;
+    private String currentUserStatus; // PENDING, ACCEPTED, REQUESTED, or null
+    private String currentUserRole; // ADMIN, MEMBER, or null
 
     public GroupDTO(Integer id, String name, String description, String privacy, Boolean isDeleted, Instant createdAt,
             Integer ownerId, String ownerName, Integer coverMediaId, String image) {
