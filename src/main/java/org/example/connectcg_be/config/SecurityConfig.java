@@ -53,6 +53,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                .cors(org.springframework.security.config.Customizer.withDefaults()) // Kích hoạt CORS
                 .csrf(AbstractHttpConfigurer::disable) // Tắt CSRF vì ta dùng Token
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phép login/register không cần

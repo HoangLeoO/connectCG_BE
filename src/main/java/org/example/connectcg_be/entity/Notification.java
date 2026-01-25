@@ -54,6 +54,9 @@ public class Notification {
     @Column(name = "is_read")
     private Boolean isRead;
 
+    @Column(name = "content", columnDefinition = "TEXT")
+    private String content;
+
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "created_at")
     private Instant createdAt;
