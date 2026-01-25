@@ -37,4 +37,8 @@ public interface FriendRepository extends JpaRepository<Friend, FriendId> {
             @Param("gender") String gender,
             @Param("cityId") Integer cityId,
             Pageable pageable);
+
+    boolean existsByUserIdAndFriendId(Integer userId, Integer friendId);
+
+    Integer countByUserId(Integer userId);
 }
