@@ -6,5 +6,6 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface PostRepository extends JpaRepository<Post, Integer> {
+    Integer countByAuthorIdAndIsDeletedFalse(Integer authorId);
     long countByGroupIdAndStatus(Integer groupId, String status);
 }

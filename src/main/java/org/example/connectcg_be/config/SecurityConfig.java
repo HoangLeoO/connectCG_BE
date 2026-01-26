@@ -57,7 +57,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable) // Tắt CSRF vì ta dùng Token
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phép login/register không cần
-                                                                                  // token
+                        // token
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll() // Nếu có Swagger
                         .anyRequest().authenticated() // Còn lại phải đăng nhập
                 )
