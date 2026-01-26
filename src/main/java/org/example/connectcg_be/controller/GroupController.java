@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+
 @RestController
 @RequestMapping("/api/groups")
 @RequiredArgsConstructor
@@ -204,6 +205,7 @@ public class GroupController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
     @PostMapping("/{id}/transfer-ownership")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<String> transferOwnership(
@@ -219,6 +221,23 @@ public class GroupController {
 
             groupService.transferOwnershipAndLeave(id, newOwnerId, userPrincipal.getId());
             return ResponseEntity.ok("Đã chuyển quyền sở hữu và rời nhóm thành công");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/members/{userId}/role")
+    @PreAuthorize("isAuthenticated() and @groupSecurity.isGroupAdmin(#id)")
+    public ResponseEntity<String> updateMemberRole(
+            @PathVariable("id") Integer id,
+            @PathVariable("userId") Integer userId,
+            @RequestBody Map<String, String> request,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            String newRole = request.get("role");
+            groupService.updateMemberRole(id, userId, newRole, userPrincipal.getId());
+            return ResponseEntity.ok("Cập nhật vai trò thành công");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

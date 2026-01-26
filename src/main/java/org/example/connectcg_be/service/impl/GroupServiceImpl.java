@@ -34,6 +34,10 @@ public class GroupServiceImpl implements GroupService {
     private org.example.connectcg_be.repository.UserAvatarRepository userAvatarRepository;
     @Autowired
     private PostRepository postRepository;
+    @Autowired
+    private org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
+    @Autowired
+    private org.example.connectcg_be.repository.NotificationRepository notificationRepository;
 
     @Override
     @Transactional
@@ -65,6 +69,12 @@ public class GroupServiceImpl implements GroupService {
     private GroupDTO mapToBasicDTO(Group group) {
         String ownerName = group.getOwner() != null ? group.getOwner().getUsername() : null;
         Integer ownerId = group.getOwner() != null ? group.getOwner().getId() : null;
+        String ownerFullName = ownerName;
+        if (ownerId != null) {
+            ownerFullName = userProfileRepository.findByUserId(ownerId)
+                    .map(UserProfile::getFullName)
+                    .orElse(ownerName);
+        }
         String imageUrl = group.getCoverMedia() != null ? group.getCoverMedia().getUrl() : null;
         Integer coverMediaId = group.getCoverMedia() != null ? group.getCoverMedia().getId() : null;
 
@@ -77,6 +87,7 @@ public class GroupServiceImpl implements GroupService {
                 group.getCreatedAt(),
                 ownerId,
                 ownerName,
+                ownerFullName,
                 coverMediaId,
                 imageUrl);
 
@@ -149,7 +160,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public List<GroupDTO> searchGroups(String query, Integer userId) {
-        return groupRepository.findByNameContainingIgnoreCaseAndIsDeletedFalse(query).stream()
+        return groupRepository.searchByKeyword(query).stream()
                 .map(group -> mapToDTO(group, userId))
                 .collect(Collectors.toList());
     }
@@ -203,9 +214,13 @@ public class GroupServiceImpl implements GroupService {
             String avatarUrl = (avatar != null && avatar.getMedia() != null) ? avatar.getMedia().getUrl()
                     : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
+            UserProfile profile = userProfileRepository.findByUserId(member.getUser().getId()).orElse(null);
+            String fullName = profile != null ? profile.getFullName() : member.getUser().getUsername();
+
             return new TungGroupMemberDTO(
                     member.getUser().getId(),
                     member.getUser().getUsername(),
+                    fullName,
                     avatarUrl,
                     member.getRole(),
                     member.getStatus(),
@@ -217,7 +232,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void leaveGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm khoong tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
         if (group.getOwner().getId().equals(userId)) {
             throw new RuntimeException("Admin nhóm không thể rời nhóm, hãy chọn admin trước");
@@ -450,6 +465,18 @@ public class GroupServiceImpl implements GroupService {
         member.setStatus("ACCEPTED");
         member.setJoinedAt(Instant.now());
         groupMemberRepository.save(member);
+
+        // Create Notification
+        Notification notification = new Notification();
+        notification.setUser(member.getUser());
+        notification.setActor(admin.getUser());
+        notification.setType("GROUP_JOIN_APPROVED");
+        notification.setTargetType("GROUP");
+        notification.setTargetId(groupId);
+        notification.setIsRead(false);
+        notification.setCreatedAt(Instant.now());
+        notification.setContent("Bạn đã tham gia vào nhóm " + member.getGroup().getName());
+        notificationRepository.save(notification);
     }
 
     @Override
@@ -480,9 +507,13 @@ public class GroupServiceImpl implements GroupService {
             String avatarUrl = avatar != null ? avatar.getMedia().getUrl()
                     : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
+            UserProfile profile = userProfileRepository.findByUserId(member.getUser().getId()).orElse(null);
+            String fullName = profile != null ? profile.getFullName() : member.getUser().getUsername();
+
             return new TungGroupMemberDTO(
                     member.getUser().getId(),
                     member.getUser().getUsername(),
+                    fullName,
                     avatarUrl,
                     member.getRole(),
                     member.getStatus(),
@@ -566,5 +597,88 @@ public class GroupServiceImpl implements GroupService {
         oldOwnerMemberId.setGroupId(groupId);
         oldOwnerMemberId.setUserId(currentOwnerId);
         groupMemberRepository.deleteById(oldOwnerMemberId);
+
+        // 8. Create Notification for new owner
+        Notification notification = new Notification();
+        notification.setUser(newOwner);
+        notification.setActor(userService.findByIdUser(currentOwnerId));
+        notification.setType("GROUP_OWNER_CHANGE");
+        notification.setTargetType("GROUP");
+        notification.setTargetId(groupId);
+        notification.setIsRead(false);
+        notification.setCreatedAt(Instant.now());
+        notification.setContent("Bạn đã được chuyển quyền sở hữu nhóm " + group.getName());
+        notificationRepository.save(notification);
+    }
+
+    @Override
+    @Transactional
+    public void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId) {
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+
+        // 1. Phân quyền: Ai có quyền thực hiện?
+        GroupMemberId actorPk = new GroupMemberId();
+        actorPk.setGroupId(groupId);
+        actorPk.setUserId(actorId);
+        GroupMember actor = groupMemberRepository.findById(actorPk)
+                .orElseThrow(() -> new RuntimeException("Bạn không phải thành viên nhóm"));
+
+        boolean isActorOwner = group.getOwner().getId().equals(actorId);
+        boolean isActorAdmin = "ADMIN".equals(actor.getRole());
+
+        if (!isActorOwner && !isActorAdmin) {
+            throw new RuntimeException("Chỉ Quản trị viên mới có quyền đổi vai trò");
+        }
+
+        // 2. Tìm thành viên mục tiêu
+        GroupMemberId targetPk = new GroupMemberId();
+        targetPk.setGroupId(groupId);
+        targetPk.setUserId(targetUserId);
+        GroupMember target = groupMemberRepository.findById(targetPk)
+                .orElseThrow(() -> new RuntimeException("Người dùng không phải thành viên nhóm"));
+
+        // 3. Xử lý các trường hợp đặc biệt
+        if (targetUserId.equals(actorId)) {
+            throw new RuntimeException("Bạn không thể tự đổi vai trò của chính mình");
+        }
+
+        // Nếu người bị đổi là Owner, không ai được đụng vào trừ khi chính Owner chuyển
+        // quyền
+        boolean isTargetOwner = group.getOwner().getId().equals(targetUserId);
+        if (isTargetOwner && !"ADMIN".equals(newRole)) {
+            throw new RuntimeException("Chủ nhóm bắt buộc phải có quyền Admin");
+        }
+
+        // 4. Thực hiện thay đổi (Chỉ cho phép chuyển quyền Owner)
+        if (!"OWNER".equals(newRole)) {
+            throw new RuntimeException("Chỉ có thể chuyển quyền chủ sở hữu, không thể thêm quản trị viên khác");
+        }
+
+        if (!isActorOwner) {
+            throw new RuntimeException("Chỉ chủ nhóm hiện tại mới có quyền chuyển nhượng nhóm");
+        }
+
+        // Chuyển quyền chủ nhóm
+        group.setOwner(target.getUser());
+        groupRepository.save(group);
+
+        // Người mới là Admin, người cũ trở về làm Thành viên thường
+        target.setRole("ADMIN");
+        actor.setRole("MEMBER");
+        groupMemberRepository.save(target);
+        groupMemberRepository.save(actor);
+
+        // Thông báo cho Owner mới
+        Notification n = new Notification();
+        n.setUser(target.getUser());
+        n.setActor(actor.getUser());
+        n.setType("GROUP_OWNER_CHANGE");
+        n.setTargetType("GROUP");
+        n.setTargetId(groupId);
+        n.setIsRead(false);
+        n.setCreatedAt(Instant.now());
+        n.setContent("Bạn đã được chuyển quyền sở hữu nhóm " + group.getName());
+        notificationRepository.save(n);
     }
 }

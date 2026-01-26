@@ -14,6 +14,7 @@ import java.time.Instant;
 public class TungGroupMemberDTO {
     private Integer userId;
     private String username;
+    private String fullName;
     private String avatarUrl;
     private String role;
     private String status;
