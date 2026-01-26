@@ -59,6 +59,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phép login/register không cần
                                                                                   // token
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll() // Nếu có Swagger
+                        .requestMatchers("/api/reports/**").permitAll() // 👈 thêm
+
                         .anyRequest().authenticated() // Còn lại phải đăng nhập
                 )
                 .sessionManagement(sess -> sess

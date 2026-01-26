@@ -2,6 +2,7 @@ package org.example.connectcg_be.controller;
 
 import org.example.connectcg_be.dto.ReportAdminUpdateRequest;
 import org.example.connectcg_be.dto.ReportRequest;
+import org.example.connectcg_be.dto.ReportResponse;
 import org.example.connectcg_be.entity.Report;
 import org.example.connectcg_be.service.ReportService;
 import org.springframework.http.ResponseEntity;
@@ -33,11 +34,16 @@ public class ReportController {
     // XEM DANH SÁCH REPORT
     // =========================
     @GetMapping
-    public ResponseEntity<List<Report>> getReports(
-            @RequestParam(required = false, defaultValue = "pending") String status
+    public ResponseEntity<List<ReportResponse>> getReports(
+            @RequestParam(required = false) String status
     ) {
-        return ResponseEntity.ok(reportService.getReportsByStatus(status));
+        return ResponseEntity.ok(
+                status == null
+                        ? reportService.getAllReports()
+                        : reportService.getReportsByStatus(status)
+        );
     }
+
 
     // =========================
     // XEM CHI TIẾT REPORT
