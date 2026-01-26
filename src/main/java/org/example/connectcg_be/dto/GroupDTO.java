@@ -19,6 +19,9 @@ public class GroupDTO {
     private String image;
     private String currentUserStatus; // PENDING, ACCEPTED, REQUESTED, or null
     private String currentUserRole; // ADMIN, MEMBER, or null
+    private Long pendingRequestsCount;
+    private Long pendingPostsCount;
+    private Long memberCount;
 
     public GroupDTO(Integer id, String name, String description, String privacy, Boolean isDeleted, Instant createdAt,
             Integer ownerId, String ownerName, Integer coverMediaId, String image) {

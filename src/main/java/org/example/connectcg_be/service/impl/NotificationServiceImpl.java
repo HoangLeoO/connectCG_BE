@@ -21,6 +21,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final UserAvatarRepository userAvatarRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<TungNotificationDTO> getMyNotifications(Integer userId) {
         return notificationRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
                 .stream()

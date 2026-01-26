@@ -13,10 +13,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.example.connectcg_be.security.UserPrincipal;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+import java.util.Map;
 @RestController
 @RequestMapping("/api/groups")
 @RequiredArgsConstructor
@@ -30,11 +31,13 @@ public class GroupController {
     GroupMemberService groupMemberService;
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<GroupDTO> getAll() {
         return groupService.findAllGroups();
     }
 
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> create(@Valid @RequestBody CreateGroup request, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         groupService.addGroup(request, userPrincipal.getId());
@@ -42,30 +45,35 @@ public class GroupController {
     }
 
     @GetMapping("/my-groups")
+    @PreAuthorize("isAuthenticated()")
     public List<GroupDTO> getMyGroups(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.findMyGroups(userPrincipal.getId());
     }
 
     @GetMapping("/discover")
+    @PreAuthorize("isAuthenticated()")
     public List<GroupDTO> getDiscoverGroups(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.findDiscoverGroups(userPrincipal.getId());
     }
 
     @GetMapping("/search")
+    @PreAuthorize("isAuthenticated()")
     public List<GroupDTO> searchGroups(@RequestParam("name") String name, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.searchGroups(name, userPrincipal.getId());
     }
 
     @GetMapping("/{id}/members")
+    @PreAuthorize("isAuthenticated()")
     public List<TungGroupMemberDTO> getMembers(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.getMembers(id, userPrincipal.getId());
     }
 
     @DeleteMapping("/{id}/leave")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<String> leaveGroup(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
@@ -77,6 +85,7 @@ public class GroupController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<String> deleteGroup(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
@@ -88,6 +97,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/invite")
+    @PreAuthorize("isAuthenticated() and (hasRole('ADMIN') or @groupSecurity.isGroupMember(#id))")
     public ResponseEntity<Void> inviteMembers(@PathVariable("id") Integer id, @RequestBody List<Integer> userIds,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -96,12 +106,14 @@ public class GroupController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public GroupDTO getById(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.findById(id, userPrincipal.getId());
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<Void> update(@PathVariable("id") Integer id, @Valid @RequestBody CreateGroup request,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -110,6 +122,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/accept")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> acceptInvitation(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         groupService.acceptInvitation(id, userPrincipal.getId());
@@ -117,6 +130,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/decline")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> declineInvitation(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         groupService.declineInvitation(id, userPrincipal.getId());
@@ -124,12 +138,14 @@ public class GroupController {
     }
 
     @GetMapping("/invitations")
+    @PreAuthorize("isAuthenticated()")
     public List<GroupDTO> getPendingInvitations(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.findPendingInvitations(userPrincipal.getId());
     }
 
     @PostMapping("/{id}/join")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<String> joinGroup(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
@@ -141,6 +157,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/approve/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<String> approveJoinRequest(@PathVariable("id") Integer id,
             @PathVariable("userId") Integer userId,
             Authentication authentication) {
@@ -154,6 +171,7 @@ public class GroupController {
     }
 
     @PostMapping("/{id}/reject/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<String> rejectJoinRequest(@PathVariable("id") Integer id,
             @PathVariable("userId") Integer userId,
             Authentication authentication) {
@@ -167,6 +185,7 @@ public class GroupController {
     }
 
     @GetMapping("/{id}/requests")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public List<TungGroupMemberDTO> getPendingJoinRequests(@PathVariable("id") Integer id,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -174,12 +193,32 @@ public class GroupController {
     }
 
     @DeleteMapping("/{id}/kick/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<String> kickMember(@PathVariable("id") Integer id, @PathVariable("userId") Integer userId,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
             groupService.kickMember(id, userId, userPrincipal.getId());
             return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    @PostMapping("/{id}/transfer-ownership")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> transferOwnership(
+            @PathVariable("id") Integer id,
+            @RequestBody Map<String, Integer> request,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            Integer newOwnerId = request.get("newOwnerId");
+            if (newOwnerId == null) {
+                return ResponseEntity.badRequest().body("Vui lòng chọn chủ sở hữu mới");
+            }
+
+            groupService.transferOwnershipAndLeave(id, newOwnerId, userPrincipal.getId());
+            return ResponseEntity.ok("Đã chuyển quyền sở hữu và rời nhóm thành công");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

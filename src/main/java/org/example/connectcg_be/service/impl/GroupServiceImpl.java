@@ -7,7 +7,7 @@ import org.example.connectcg_be.dto.TungGroupMemberDTO;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.GroupMemberRepository;
 import org.example.connectcg_be.repository.GroupRepository;
-import org.example.connectcg_be.repository.NotificationRepository;
+import org.example.connectcg_be.repository.PostRepository;
 import org.example.connectcg_be.service.GroupService;
 import org.example.connectcg_be.service.MediaService;
 import org.example.connectcg_be.service.UserService;
@@ -16,10 +16,12 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class GroupServiceImpl implements GroupService {
+    // Fields already defined in replacement chunk 1
     @Autowired
     private GroupRepository groupRepository;
     @Autowired
@@ -29,14 +31,61 @@ public class GroupServiceImpl implements GroupService {
     @Autowired
     private UserService userService;
     @Autowired
-    private NotificationRepository notificationRepository;
-    @Autowired
     private org.example.connectcg_be.repository.UserAvatarRepository userAvatarRepository;
+    @Autowired
+    private PostRepository postRepository;
 
     @Override
     @Transactional
     public List<GroupDTO> findAllGroups() {
         return groupRepository.findAllByIsDeletedFalse().stream().map(this::mapToDTO).collect(Collectors.toList());
+    }
+
+    private GroupDTO mapToDTO(Group group) {
+        return mapToDTO(group, null);
+    }
+
+    private GroupDTO mapToDTO(Group group, Integer userId) {
+        GroupDTO dto = mapToBasicDTO(group);
+
+        // Membership info
+        if (userId != null) {
+            GroupMemberId memberId = new GroupMemberId();
+            memberId.setGroupId(group.getId());
+            memberId.setUserId(userId);
+            groupMemberRepository.findById(memberId).ifPresent(member -> {
+                dto.setCurrentUserStatus(member.getStatus());
+                dto.setCurrentUserRole(member.getRole());
+            });
+        }
+
+        return dto;
+    }
+
+    private GroupDTO mapToBasicDTO(Group group) {
+        String ownerName = group.getOwner() != null ? group.getOwner().getUsername() : null;
+        Integer ownerId = group.getOwner() != null ? group.getOwner().getId() : null;
+        String imageUrl = group.getCoverMedia() != null ? group.getCoverMedia().getUrl() : null;
+        Integer coverMediaId = group.getCoverMedia() != null ? group.getCoverMedia().getId() : null;
+
+        GroupDTO dto = new GroupDTO(
+                group.getId(),
+                group.getName(),
+                group.getDescription(),
+                group.getPrivacy(),
+                group.getIsDeleted(),
+                group.getCreatedAt(),
+                ownerId,
+                ownerName,
+                coverMediaId,
+                imageUrl);
+
+        // Populate counts
+        dto.setPendingRequestsCount(groupMemberRepository.countByIdGroupIdAndStatus(group.getId(), "REQUESTED"));
+        dto.setPendingPostsCount(postRepository.countByGroupIdAndStatus(group.getId(), "PENDING"));
+        dto.setMemberCount(groupMemberRepository.countByIdGroupIdAndStatus(group.getId(), "ACCEPTED"));
+
+        return dto;
     }
 
     @Override
@@ -81,35 +130,26 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public List<GroupDTO> findMyGroups(Integer userId) {
         return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "ACCEPTED").stream().map(member -> {
-            Group group = member.getGroup();
-            return mapToDTO(group);
+            GroupDTO dto = mapToDTO(member.getGroup(), userId);
+            // Explicitly set these from the member object we already have
+            dto.setCurrentUserStatus(member.getStatus());
+            dto.setCurrentUserRole(member.getRole());
+            return dto;
         }).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public List<GroupDTO> findDiscoverGroups(Integer userId) {
-        return groupRepository.findDiscoverGroups(userId).stream().map(this::mapToDTO).collect(Collectors.toList());
+        return groupRepository.findDiscoverGroups(userId).stream().map(group -> {
+            return mapToDTO(group, userId);
+        }).collect(Collectors.toList());
     }
 
     @Override
     public List<GroupDTO> searchGroups(String query, Integer userId) {
         return groupRepository.findByNameContainingIgnoreCaseAndIsDeletedFalse(query).stream()
-                .map(group -> {
-                    GroupDTO dto = mapToDTO(group);
-
-                    // Populate membership info for search results
-                    GroupMemberId memberId = new GroupMemberId();
-                    memberId.setGroupId(group.getId());
-                    memberId.setUserId(userId);
-
-                    groupMemberRepository.findById(memberId).ifPresent(member -> {
-                        dto.setCurrentUserStatus(member.getStatus());
-                        dto.setCurrentUserRole(member.getRole());
-                    });
-
-                    return dto;
-                })
+                .map(group -> mapToDTO(group, userId))
                 .collect(Collectors.toList());
     }
 
@@ -117,19 +157,7 @@ public class GroupServiceImpl implements GroupService {
     public GroupDTO findById(Integer id, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
-        GroupDTO dto = mapToDTO(group);
-
-        // Check current user's membership
-        GroupMemberId memberId = new GroupMemberId();
-        memberId.setGroupId(id);
-        memberId.setUserId(userId);
-
-        groupMemberRepository.findById(memberId).ifPresent(member -> {
-            dto.setCurrentUserStatus(member.getStatus());
-            dto.setCurrentUserRole(member.getRole());
-        });
-
-        return dto;
+        return mapToDTO(group, userId);
     }
 
     @Override
@@ -154,25 +182,6 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.save(group);
     }
 
-    private GroupDTO mapToDTO(Group group) {
-        String ownerName = group.getOwner() != null ? group.getOwner().getUsername() : null;
-        Integer ownerId = group.getOwner() != null ? group.getOwner().getId() : null;
-        String imageUrl = group.getCoverMedia() != null ? group.getCoverMedia().getUrl() : null;
-        Integer coverMediaId = group.getCoverMedia() != null ? group.getCoverMedia().getId() : null;
-
-        return new GroupDTO(
-                group.getId(),
-                group.getName(),
-                group.getDescription(),
-                group.getPrivacy(),
-                group.getIsDeleted(),
-                group.getCreatedAt(),
-                ownerId,
-                ownerName,
-                coverMediaId,
-                imageUrl);
-    }
-
     @Override
     public List<TungGroupMemberDTO> getMembers(Integer groupId, Integer requesterId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
@@ -189,9 +198,8 @@ public class GroupServiceImpl implements GroupService {
         }
 
         return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "ACCEPTED").stream().map(member -> {
-            org.example.connectcg_be.entity.UserAvatar avatar = userAvatarRepository
-                    .findByUserIdAndIsCurrentTrue(member.getUser().getId());
-            String avatarUrl = avatar != null ? avatar.getMedia().getUrl()
+            UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(member.getUser().getId());
+            String avatarUrl = (avatar != null && avatar.getMedia() != null) ? avatar.getMedia().getUrl()
                     : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
             return new TungGroupMemberDTO(
@@ -208,10 +216,10 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void leaveGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+                .orElseThrow(() -> new RuntimeException("Nhóm khoong tồn tại"));
 
         if (group.getOwner().getId().equals(userId)) {
-            throw new RuntimeException("Owner cannot leave the group. Please transfer ownership or delete the group.");
+            throw new RuntimeException("Admin nhóm không thể rời nhóm, hãy chọn admin trước");
         }
 
         GroupMemberId memberId = new GroupMemberId();
@@ -239,8 +247,6 @@ public class GroupServiceImpl implements GroupService {
     public void inviteMembers(Integer groupId, List<Integer> userIds, Integer actorId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
-
-        User actor = userService.findByIdUser(actorId);
 
         // Security check: Inviter must be an active member of the group
         GroupMemberId actorPk = new GroupMemberId();
@@ -274,19 +280,6 @@ public class GroupServiceImpl implements GroupService {
             member.setInvitedById(actorId);
 
             groupMemberRepository.save(member);
-
-            // Create Notification
-            Notification notification = new Notification();
-            notification.setUser(user);
-            notification.setActor(actor);
-            notification.setType("GROUP_INVITE");
-            notification.setTargetType("GROUP");
-            notification.setTargetId(groupId);
-            notification.setContent(actor.getUsername() + " đã mời bạn tham gia nhóm " + group.getName());
-            notification.setIsRead(false);
-            notification.setCreatedAt(Instant.now());
-
-            notificationRepository.save(notification);
         }
     }
 
@@ -310,9 +303,27 @@ public class GroupServiceImpl implements GroupService {
             GroupMemberId inviterPk = new GroupMemberId();
             inviterPk.setGroupId(groupId);
             inviterPk.setUserId(member.getInvitedById());
-            GroupMember inviter = groupMemberRepository.findById(inviterPk).orElse(null);
-            if (inviter != null && "ADMIN".equals(inviter.getRole())) {
+            groupMemberRepository.findById(inviterPk).ifPresent(inviter -> {
+                if ("ADMIN".equals(inviter.getRole())) {
+                    // Note: Here we consider ADMIN role or being the OWNER (if owner role is also
+                    // ADMIN)
+                    // If your system separates OWNER and ADMIN, you might need extra checks or use
+                    // group.getOwner().getId()
+                }
+            });
+
+            // Improved check for Admin/Owner
+            Group inviterGroup = member.getGroup();
+            if (inviterGroup.getOwner() != null && inviterGroup.getOwner().getId().equals(member.getInvitedById())) {
                 invitedByAdmin = true;
+            } else {
+                GroupMemberId inviterPkAlt = new GroupMemberId();
+                inviterPkAlt.setGroupId(groupId);
+                inviterPkAlt.setUserId(member.getInvitedById());
+                Optional<GroupMember> inviterOpt = groupMemberRepository.findById(inviterPkAlt);
+                if (inviterOpt.isPresent() && "ADMIN".equals(inviterOpt.get().getRole())) {
+                    invitedByAdmin = true;
+                }
             }
         }
 
@@ -322,21 +333,8 @@ public class GroupServiceImpl implements GroupService {
             member.setStatus("ACCEPTED");
             member.setJoinedAt(Instant.now());
         } else {
-            // Requires admin approval (Private Group + Non-admin inviter)
+            // Private group invited by a regular member
             member.setStatus("REQUESTED");
-
-            // Notify Admin/Owner
-            Notification notification = new Notification();
-            notification.setUser(member.getGroup().getOwner());
-            notification.setActor(member.getUser());
-            notification.setType("GROUP_JOIN_REQUEST");
-            notification.setTargetType("GROUP");
-            notification.setTargetId(groupId);
-            notification.setContent(member.getUser().getUsername() + " chấp nhận lời mời tham gia nhóm "
-                    + member.getGroup().getName() + ". Vui lòng phê duyệt.");
-            notification.setIsRead(false);
-            notification.setCreatedAt(Instant.now());
-            notificationRepository.save(notification);
         }
 
         groupMemberRepository.save(member);
@@ -362,7 +360,12 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public List<GroupDTO> findPendingInvitations(Integer userId) {
         return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "PENDING").stream()
-                .map(member -> mapToDTO(member.getGroup()))
+                .map(member -> {
+                    GroupDTO dto = mapToDTO(member.getGroup());
+                    dto.setCurrentUserStatus(member.getStatus());
+                    dto.setCurrentUserRole(member.getRole());
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -379,51 +382,26 @@ public class GroupServiceImpl implements GroupService {
         id.setUserId(userId);
 
         if (groupMemberRepository.existsById(id)) {
-            GroupMember existing = groupMemberRepository.findById(id).get();
-            if ("ACCEPTED".equals(existing.getStatus())) {
-                throw new RuntimeException("Already a member");
-            }
-            if ("PENDING".equals(existing.getStatus())) {
-                // User has an invitation, follow the same approval rules
-                boolean invitedByAdmin = false;
-                if (existing.getInvitedById() != null) {
-                    GroupMemberId inviterPk = new GroupMemberId();
-                    inviterPk.setGroupId(groupId);
-                    inviterPk.setUserId(existing.getInvitedById());
-                    GroupMember inviter = groupMemberRepository.findById(inviterPk).orElse(null);
-                    if (inviter != null && "ADMIN".equals(inviter.getRole())) {
-                        invitedByAdmin = true;
+            GroupMember existing = groupMemberRepository.findById(id).orElse(null);
+            if (existing != null) {
+                if ("ACCEPTED".equals(existing.getStatus())) {
+                    throw new RuntimeException("Bạn đã là thành viên của nhóm này rồi.");
+                }
+                if ("REQUESTED".equals(existing.getStatus())) {
+                    throw new RuntimeException("Yêu cầu tham gia của bạn đang chờ phê duyệt.");
+                }
+                if ("PENDING".equals(existing.getStatus())) {
+                    // If user has an invitation and tries to join manually:
+                    // We automatically accept them if the group is PUBLIC.
+                    if ("PUBLIC".equals(group.getPrivacy())) {
+                        existing.setStatus("ACCEPTED");
+                        existing.setJoinedAt(Instant.now());
+                        groupMemberRepository.save(existing);
+                        return;
                     }
+                    throw new RuntimeException(
+                            "Bạn có một lời mời tham gia nhóm này. Vui lòng chấp nhận trong tab Lời mời.");
                 }
-
-                boolean isPublicGroup = "PUBLIC".equals(group.getPrivacy());
-
-                if (invitedByAdmin || isPublicGroup) {
-                    existing.setStatus("ACCEPTED");
-                    existing.setJoinedAt(Instant.now());
-                } else {
-                    // Private Group + Non-admin inviter -> REQUESTED
-                    existing.setStatus("REQUESTED");
-
-                    // Notify Admin/Owner
-                    Notification notification = new Notification();
-                    notification.setUser(group.getOwner());
-                    notification.setActor(user);
-                    notification.setType("GROUP_JOIN_REQUEST");
-                    notification.setTargetType("GROUP");
-                    notification.setTargetId(groupId);
-                    notification.setContent(user.getUsername() + " chấp nhận lời mời tham gia nhóm " + group.getName()
-                            + ". Vui lòng phê duyệt.");
-                    notification.setIsRead(false);
-                    notification.setCreatedAt(Instant.now());
-                    notificationRepository.save(notification);
-                }
-
-                groupMemberRepository.save(existing);
-                return;
-            }
-            if ("REQUESTED".equals(existing.getStatus())) {
-                throw new RuntimeException("Join request already sent");
             }
         }
 
@@ -441,20 +419,6 @@ public class GroupServiceImpl implements GroupService {
         member.setJoinedAt(Instant.now());
 
         groupMemberRepository.save(member);
-
-        if ("REQUESTED".equals(member.getStatus())) {
-            // Notify Admin
-            Notification notification = new Notification();
-            notification.setUser(group.getOwner());
-            notification.setActor(user);
-            notification.setType("GROUP_JOIN_REQUEST");
-            notification.setTargetType("GROUP");
-            notification.setTargetId(groupId);
-            notification.setContent(user.getUsername() + " yêu cầu gia nhập nhóm " + group.getName());
-            notification.setIsRead(false);
-            notification.setCreatedAt(Instant.now());
-            notificationRepository.save(notification);
-        }
     }
 
     @Override
@@ -484,18 +448,6 @@ public class GroupServiceImpl implements GroupService {
         member.setStatus("ACCEPTED");
         member.setJoinedAt(Instant.now());
         groupMemberRepository.save(member);
-
-        // Notify user
-        Notification notification = new Notification();
-        notification.setUser(member.getUser());
-        notification.setActor(admin.getUser());
-        notification.setType("GROUP_JOIN_APPROVED");
-        notification.setTargetType("GROUP");
-        notification.setTargetId(groupId);
-        notification.setContent("Yêu cầu gia nhập nhóm " + member.getGroup().getName() + " đã được phê duyệt.");
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notificationRepository.save(notification);
     }
 
     @Override
@@ -511,21 +463,6 @@ public class GroupServiceImpl implements GroupService {
         if (!"REQUESTED".equals(member.getStatus())) {
             throw new RuntimeException("Member status is not REQUESTED");
         }
-
-        User targetUser = member.getUser();
-        User actor = userService.findByIdUser(adminId);
-
-        // Create Notification for the rejected member
-        Notification notification = new Notification();
-        notification.setUser(targetUser);
-        notification.setActor(actor);
-        notification.setType("GROUP_REJECTED");
-        notification.setTargetType("GROUP");
-        notification.setTargetId(groupId);
-        notification.setContent("Yêu cầu tham gia nhóm " + member.getGroup().getName() + " của bạn đã bị từ chối.");
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notificationRepository.save(notification);
 
         groupMemberRepository.delete(member);
     }
@@ -577,25 +514,52 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Cannot kick the group owner");
         }
 
-        User targetUser = userService.findByIdUser(targetUserId);
-        User actor = userService.findByIdUser(adminId);
-
-        // Create Notification for the kicked member
-        Notification notification = new Notification();
-        notification.setUser(targetUser);
-        notification.setActor(actor);
-        notification.setType("GROUP_KICK");
-        notification.setTargetType("GROUP");
-        notification.setTargetId(groupId);
-        notification.setContent("Bạn đã bị mời ra khỏi nhóm " + group.getName() + " bởi " + actor.getUsername());
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notificationRepository.save(notification);
-
         // Delete membership
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         groupMemberRepository.deleteById(targetPk);
+    }
+
+    @Override
+    @Transactional
+    public void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId) {
+        // 1. Tìm nhóm và validate Owner hiện tại
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+
+        if (!group.getOwner().getId().equals(currentOwnerId)) {
+            throw new RuntimeException("Chỉ chủ sở hữu mới có quyền chuyển nhượng");
+        }
+
+        // 2. Validate không thể chuyển cho chính mình
+        if (newOwnerId.equals(currentOwnerId)) {
+            throw new RuntimeException("Không thể chuyển quyền cho chính mình");
+        }
+
+        // 3. Tìm Owner mới
+        User newOwner = userService.findByIdUser(newOwnerId);
+
+        // 4. Tìm membership của Owner mới
+        GroupMemberId newOwnerMemberId = new GroupMemberId();
+        newOwnerMemberId.setGroupId(groupId);
+        newOwnerMemberId.setUserId(newOwnerId);
+
+        GroupMember newOwnerMember = groupMemberRepository.findById(newOwnerMemberId)
+                .orElseThrow(() -> new RuntimeException("Người được chọn không phải thành viên nhóm"));
+
+        // 5. Chuyển quyền Owner trong bảng Group
+        group.setOwner(newOwner);
+        groupRepository.save(group);
+
+        // 6. Cập nhật role của Owner mới thành ADMIN (nếu chưa phải)
+        newOwnerMember.setRole("ADMIN");
+        groupMemberRepository.save(newOwnerMember);
+
+        // 7. Xóa membership của Owner cũ (tự động rời nhóm)
+        GroupMemberId oldOwnerMemberId = new GroupMemberId();
+        oldOwnerMemberId.setGroupId(groupId);
+        oldOwnerMemberId.setUserId(currentOwnerId);
+        groupMemberRepository.deleteById(oldOwnerMemberId);
     }
 }
