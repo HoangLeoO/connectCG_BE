@@ -5,12 +5,15 @@ import org.example.connectcg_be.dto.RegisterRequest;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.AuthService;
+import org.example.connectcg_be.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -31,6 +34,10 @@ public class AuthServiceImpl implements AuthService {
     private HobbyRepository hobbyRepository;
     @Autowired
     private UserHobbyRepository userHobbyRepository;
+    @Autowired
+    private PasswordResetTokenRepository tokenRepository;
+    @Autowired
+    private EmailService emailService;
 
     @Override
     @Transactional
@@ -117,5 +124,60 @@ public class AuthServiceImpl implements AuthService {
         }
         return savedProfile;
 
+    }
+
+    @Override
+    // Hàm Forgot Password
+    public void forgotPassword(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
+
+        String token = UUID.randomUUID().toString();
+        PasswordResetToken myToken = new PasswordResetToken(token, user);
+        tokenRepository.save(myToken);
+        String link = "http://localhost:5173/reset-password?token=" + token;
+        String htmlContent = """
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+            <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h1 style="color: #FF5722; margin: 0;">Connect.</h1>
+                </div>
+                <h2 style="color: #333333; margin-top: 0;">Yêu cầu đặt lại mật khẩu</h2>
+                <p style="color: #666666; font-size: 16px; line-height: 1.5;">
+                    Xin chào <strong>%s</strong>,<br><br>
+                    Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.
+                </p>
+                <div style="text-align: center; margin: 30px 0;">
+                    <a href="%s" style="background-color: #FF5722; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 5px; display: inline-block;">
+                        Đặt lại mật khẩu
+                    </a>
+                </div>
+                <p style="color: #999999; font-size: 14px; text-align: center;">
+                    Link này sẽ hết hạn sau 10 phút.
+                </p>
+                <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;">
+                <p style="color: #aaaaaa; font-size: 12px; text-align: center;">
+                    © 2026 Connect. -  All rights reserved.
+                </p>
+            </div>
+        </div>
+    """.formatted(user.getUsername(), link);
+        emailService.sendHtmlMessage(email, "Yêu cầu đặt lại mật khẩu - Connect", htmlContent);
+    }
+
+    @Override
+    // Hàm Reset Password
+    public void resetPassword(String token, String newPassword) {
+        PasswordResetToken resetToken = tokenRepository.findByToken(token)
+                .orElseThrow(() -> new RuntimeException("Token không hợp lệ"));
+
+        if (resetToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Token đã hết hạn");
+        }
+        User user = resetToken.getUser();
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        tokenRepository.delete(resetToken); // Mật khẩu đổi xong thì xóa token
     }
 }

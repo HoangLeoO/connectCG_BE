@@ -15,11 +15,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -91,5 +87,17 @@ public class AuthController {
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestParam String email) {
+        authService.forgotPassword(email);
+        return ResponseEntity.ok("Email sent");
+    }
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestParam String token, @RequestParam String newPassword) {
+        authService.resetPassword(token, newPassword);
+        return ResponseEntity.ok("Password updated");
     }
 }
