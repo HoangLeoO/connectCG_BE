@@ -20,7 +20,7 @@
 
   # Cấu hình Flyway
   spring.flyway.enabled=true
-  spring.flyway.clean-disabled=false  # Cho phép chạy lệnh 'clean' khi cần xử lý lỗi
+  spring.flyway.clean-disabled=true  # Cho phép chạy lệnh 'clean' khi cần xử lý lỗi
   # spring.flyway.baseline-on-migrate=true # (Đã dùng tạm thời, giờ có thể bỏ)
   ```
 
