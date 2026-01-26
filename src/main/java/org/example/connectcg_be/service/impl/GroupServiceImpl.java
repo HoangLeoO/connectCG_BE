@@ -129,13 +129,14 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public List<GroupDTO> findMyGroups(Integer userId) {
-        return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "ACCEPTED").stream().map(member -> {
-            GroupDTO dto = mapToDTO(member.getGroup(), userId);
-            // Explicitly set these from the member object we already have
-            dto.setCurrentUserStatus(member.getStatus());
-            dto.setCurrentUserRole(member.getRole());
-            return dto;
-        }).collect(Collectors.toList());
+        return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "ACCEPTED").stream()
+                .filter(member -> !member.getGroup().getIsDeleted())
+                .map(member -> {
+                    GroupDTO dto = mapToDTO(member.getGroup(), userId);
+                    dto.setCurrentUserStatus(member.getStatus());
+                    dto.setCurrentUserRole(member.getRole());
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     @Override
@@ -360,6 +361,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public List<GroupDTO> findPendingInvitations(Integer userId) {
         return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "PENDING").stream()
+                .filter(member -> !member.getGroup().getIsDeleted())
                 .map(member -> {
                     GroupDTO dto = mapToDTO(member.getGroup());
                     dto.setCurrentUserStatus(member.getStatus());
@@ -469,6 +471,9 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public List<TungGroupMemberDTO> getPendingJoinRequests(Integer groupId, Integer adminId) {
+        groupRepository.findByIdAndIsDeletedFalse(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại hoặc đã bị xóa"));
+
         return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "REQUESTED").stream().map(member -> {
             org.example.connectcg_be.entity.UserAvatar avatar = userAvatarRepository
                     .findByUserIdAndIsCurrentTrue(member.getUser().getId());
