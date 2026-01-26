@@ -20,7 +20,8 @@ public class UserProfileController {
     public ResponseEntity<UserProfileDTO> getUserProfile(
             @PathVariable Integer userId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        
+
+        System.out.println(currentUser.getId());
         Integer currentUserId = (currentUser != null) ? currentUser.getId() : null;
         UserProfileDTO profile = userProfileService.getUserProfile(userId, currentUserId);
         return ResponseEntity.ok(profile);
