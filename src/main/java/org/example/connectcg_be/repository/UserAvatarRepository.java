@@ -8,5 +8,5 @@ import java.util.Optional;
 
 @Repository
 public interface UserAvatarRepository extends JpaRepository<UserAvatar, Integer> {
-    Optional<UserAvatar> findByUserIdAndIsCurrentTrue(Integer userId);
+    UserAvatar findByUserIdAndIsCurrentTrue(Integer userId);
 }

@@ -82,9 +82,8 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private String getCurrentAvatar(Integer userId) {
-        return userAvatarRepository.findByUserIdAndIsCurrentTrue(userId)
-                .map(ua -> ua.getMedia().getUrl())
-                .orElse(null);
+        UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(userId);
+        return (avatar != null && avatar.getMedia() != null) ? avatar.getMedia().getUrl() : null;
     }
 
     private String getCurrentCover(Integer userId) {
