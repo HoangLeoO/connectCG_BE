@@ -45,4 +45,6 @@ public interface GroupService {
     List<TungGroupMemberDTO> getPendingJoinRequests(Integer groupId, Integer adminId);
 
     void kickMember(Integer groupId, Integer targetUserId, Integer adminId);
+
+    void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId);
 }

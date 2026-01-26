@@ -216,10 +216,10 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void leaveGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+                .orElseThrow(() -> new RuntimeException("Nhóm khoong tồn tại"));
 
         if (group.getOwner().getId().equals(userId)) {
-            throw new RuntimeException("Owner cannot leave the group. Please transfer ownership or delete the group.");
+            throw new RuntimeException("Admin nhóm không thể rời nhóm, hãy chọn admin trước");
         }
 
         GroupMemberId memberId = new GroupMemberId();
@@ -519,5 +519,47 @@ public class GroupServiceImpl implements GroupService {
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         groupMemberRepository.deleteById(targetPk);
+    }
+
+    @Override
+    @Transactional
+    public void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId) {
+        // 1. Tìm nhóm và validate Owner hiện tại
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+
+        if (!group.getOwner().getId().equals(currentOwnerId)) {
+            throw new RuntimeException("Chỉ chủ sở hữu mới có quyền chuyển nhượng");
+        }
+
+        // 2. Validate không thể chuyển cho chính mình
+        if (newOwnerId.equals(currentOwnerId)) {
+            throw new RuntimeException("Không thể chuyển quyền cho chính mình");
+        }
+
+        // 3. Tìm Owner mới
+        User newOwner = userService.findByIdUser(newOwnerId);
+
+        // 4. Tìm membership của Owner mới
+        GroupMemberId newOwnerMemberId = new GroupMemberId();
+        newOwnerMemberId.setGroupId(groupId);
+        newOwnerMemberId.setUserId(newOwnerId);
+
+        GroupMember newOwnerMember = groupMemberRepository.findById(newOwnerMemberId)
+                .orElseThrow(() -> new RuntimeException("Người được chọn không phải thành viên nhóm"));
+
+        // 5. Chuyển quyền Owner trong bảng Group
+        group.setOwner(newOwner);
+        groupRepository.save(group);
+
+        // 6. Cập nhật role của Owner mới thành ADMIN (nếu chưa phải)
+        newOwnerMember.setRole("ADMIN");
+        groupMemberRepository.save(newOwnerMember);
+
+        // 7. Xóa membership của Owner cũ (tự động rời nhóm)
+        GroupMemberId oldOwnerMemberId = new GroupMemberId();
+        oldOwnerMemberId.setGroupId(groupId);
+        oldOwnerMemberId.setUserId(currentOwnerId);
+        groupMemberRepository.deleteById(oldOwnerMemberId);
     }
 }

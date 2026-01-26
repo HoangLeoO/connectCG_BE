@@ -17,7 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+import java.util.Map;
 @RestController
 @RequestMapping("/api/groups")
 @RequiredArgsConstructor
@@ -200,6 +200,25 @@ public class GroupController {
         try {
             groupService.kickMember(id, userId, userPrincipal.getId());
             return ResponseEntity.ok().build();
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+    @PostMapping("/{id}/transfer-ownership")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<String> transferOwnership(
+            @PathVariable("id") Integer id,
+            @RequestBody Map<String, Integer> request,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            Integer newOwnerId = request.get("newOwnerId");
+            if (newOwnerId == null) {
+                return ResponseEntity.badRequest().body("Vui lòng chọn chủ sở hữu mới");
+            }
+
+            groupService.transferOwnershipAndLeave(id, newOwnerId, userPrincipal.getId());
+            return ResponseEntity.ok("Đã chuyển quyền sở hữu và rời nhóm thành công");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
