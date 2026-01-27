@@ -15,6 +15,7 @@ public class GroupDTO {
 
     private Integer ownerId;
     private String ownerName;
+    private String ownerFullName;
     private Integer coverMediaId;
     private String image;
     private String currentUserStatus; // PENDING, ACCEPTED, REQUESTED, or null
@@ -24,7 +25,7 @@ public class GroupDTO {
     private Long memberCount;
 
     public GroupDTO(Integer id, String name, String description, String privacy, Boolean isDeleted, Instant createdAt,
-            Integer ownerId, String ownerName, Integer coverMediaId, String image) {
+            Integer ownerId, String ownerName, String ownerFullName, Integer coverMediaId, String image) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -33,6 +34,7 @@ public class GroupDTO {
         this.createdAt = createdAt;
         this.ownerId = ownerId;
         this.ownerName = ownerName;
+        this.ownerFullName = ownerFullName;
         this.coverMediaId = coverMediaId;
         this.image = image;
     }

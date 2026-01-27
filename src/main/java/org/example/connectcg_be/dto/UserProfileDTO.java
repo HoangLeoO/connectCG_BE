@@ -15,33 +15,34 @@ import java.util.List;
 public class UserProfileDTO {
     private Integer userId;
     private String username;
-    private String email; 
+    private String email;
     private String role;
-    
+    private Boolean isLocked; // Status account
+
     // Profile info
     private String fullName;
-    private LocalDate dateOfBirth; 
+    private LocalDate dateOfBirth;
     private String gender;
     private String bio;
     private String occupation;
     private String maritalStatus;
     private String lookingFor;
-    
+
     // Location
     private CityDTO city;
-    
+
     // Media
     private String currentAvatarUrl;
     private String currentCoverUrl;
-    private List<MediaDTO> gallery; 
-    
+    private List<MediaDTO> gallery;
+
     // Hobbies
     private List<HobbyDTO> hobbies;
-    
+
     // Stats
     private Integer friendsCount;
     private Integer postsCount;
-    
+
     // Relationship status
     private String relationshipStatus; // SELF, FRIEND, STRANGER
     private Boolean isFriend;

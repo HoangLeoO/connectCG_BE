@@ -16,7 +16,12 @@ public interface GroupRepository extends JpaRepository<Group, Integer> {
 
     List<Group> findAllByIsDeletedFalse();
 
-    List<Group> findByNameContainingIgnoreCaseAndIsDeletedFalse(String name);
+    @Query("SELECT g FROM Group g " +
+            "LEFT JOIN UserProfile up ON g.owner.id = up.user.id WHERE " +
+            "(LOWER(g.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+            "LOWER(up.fullName) LIKE LOWER(CONCAT('%', :keyword, '%'))) AND " +
+            "g.isDeleted = false")
+    List<Group> searchByKeyword(@Param("keyword") String keyword);
 
     java.util.Optional<Group> findByIdAndIsDeletedFalse(Integer id);
 }

@@ -18,4 +18,17 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Boolean existsByUsername(String username);
 
     Boolean existsByEmail(String email);
+
+    long countByRoleAndIsDeletedFalseAndIsLockedFalse(String role);
+
+    // Tìm kiếm phân trang cho Admin với bộ lọc Role và chỉ theo FullName (không
+    // theo username/email)
+    @org.springframework.data.jpa.repository.Query("SELECT u FROM User u " +
+            "LEFT JOIN UserProfile up ON up.user = u WHERE " +
+            "(:role IS NULL OR :role = '' OR u.role = :role) AND " +
+            "(:keyword IS NULL OR :keyword = '' OR LOWER(up.fullName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    org.springframework.data.domain.Page<User> findByFilters(
+            @org.springframework.data.repository.query.Param("keyword") String keyword,
+            @org.springframework.data.repository.query.Param("role") String role,
+            org.springframework.data.domain.Pageable pageable);
 }

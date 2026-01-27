@@ -47,4 +47,6 @@ public interface GroupService {
     void kickMember(Integer groupId, Integer targetUserId, Integer adminId);
 
     void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId);
+
+    void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId);
 }
