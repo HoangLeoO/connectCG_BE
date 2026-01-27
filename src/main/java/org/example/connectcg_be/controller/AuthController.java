@@ -37,30 +37,42 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
-        // 1. Xác thực username/password
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        loginRequest.getUsername(),
-                        loginRequest.getPassword()));
+        try {
+            // 1. Xác thực username/password
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            loginRequest.getUsername(),
+                            loginRequest.getPassword()));
 
-        // 2. Nếu không có lỗi thì set vào Context
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+            // 2. Nếu không có lỗi thì set vào Context
+            SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 3. Lấy thông tin user
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+            // 3. Lấy thông tin user
+            UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
-        boolean hasProfile = userProfileRepository.existsByUserId(userPrincipal.getId());
+            boolean hasProfile = userProfileRepository.existsByUserId(userPrincipal.getId());
 
-        // 4. Tạo token
-        String jwt = tokenProvider.generateToken(userPrincipal);
+            // 4. Tạo token
+            String jwt = tokenProvider.generateToken(userPrincipal);
 
-        // Return token + info
-        return ResponseEntity.ok(new JwtResponse(
-                jwt,
-                "todo_refresh_token",
-                userPrincipal.getUsername(),
-                userPrincipal.getAuthorities().toString(),
-                hasProfile));
+            // Return token + info
+            return ResponseEntity.ok(new JwtResponse(
+                    jwt,
+                    "todo_refresh_token",
+                    userPrincipal.getUsername(),
+                    userPrincipal.getAuthorities().toString(),
+                    hasProfile));
+
+        } catch (org.springframework.security.authentication.DisabledException e) {
+            System.out.println("LOGIN ERROR: DisabledException caught! Account is disabled.");
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body("Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email.");
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            System.out.println("LOGIN ERROR: AuthenticationException caught! Type: " + e.getClass().getName());
+            System.out.println("LOGIN ERROR: Message: " + e.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body("Sai tên đăng nhập hoặc mật khẩu.");
+        }
     }
 
     // [NEW] API Đăng ký Account (Step 1)
@@ -89,15 +101,25 @@ public class AuthController {
         }
     }
 
-
     @PostMapping("/forgot-password")
     public ResponseEntity<?> forgotPassword(@RequestParam String email) {
         authService.forgotPassword(email);
         return ResponseEntity.ok("Email sent");
     }
+
     @PostMapping("/reset-password")
     public ResponseEntity<?> resetPassword(@RequestParam String token, @RequestParam String newPassword) {
         authService.resetPassword(token, newPassword);
         return ResponseEntity.ok("Password updated");
+    }
+
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam("token") String token) {
+        try {
+            authService.verifyEmail(token);
+            return ResponseEntity.ok("Xác thực email thành công! Bạn có thể đăng nhập ngay bây giờ.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 }

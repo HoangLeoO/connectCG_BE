@@ -14,4 +14,6 @@ public interface UserService {
             org.springframework.data.domain.Pageable pageable);
 
     void updateUserRole(Integer userId, String newRole, Integer actorId);
+    void toggleLockUser(Integer targetUserId, Integer adminId);
+    void softDeleteUser(Integer targetUserId, Integer adminId);
 }

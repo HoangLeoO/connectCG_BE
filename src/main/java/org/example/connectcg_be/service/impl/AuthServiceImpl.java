@@ -39,6 +39,9 @@ public class AuthServiceImpl implements AuthService {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private VerificationTokenRepository verificationTokenRepository;
+
     @Override
     @Transactional
     public User register(RegisterRequest request) {
@@ -55,8 +58,44 @@ public class AuthServiceImpl implements AuthService {
         user.setRole("USER");
         user.setIsLocked(false);
         user.setIsDeleted(false);
+        user.setIsEnabled(false); // [QUAN TRỌNG] : Mặc định chưa kích hoạt
 
-        return userRepository.save(user); // CHỈ LƯU USER, KHÔNG TẠO PROFILE
+        User savedUser = userRepository.save(user); // CHỈ LƯU USER, KHÔNG TẠO PROFILE
+
+        // [NEW] Tạo Verification Token
+        String token = UUID.randomUUID().toString();
+        VerificationToken verificationToken = new VerificationToken(token, savedUser);
+        verificationTokenRepository.save(verificationToken);
+
+        String link = "http://localhost:5173/verify-email?token=" + token;
+        String htmlContent = """
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                    <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                        <div style="text-align: center; margin-bottom: 20px;">
+                            <h1 style="color: #FF5722; margin: 0;">Connect.</h1>
+                        </div>
+                        <h2 style="color: #333333; margin-top: 0;">Xác thực tài khoản</h2>
+                        <p style="color: #666666; font-size: 16px; line-height: 1.5;">
+                            Xin chào <strong>%s</strong>,<br><br>
+                            Cảm ơn bạn đã đăng ký tài khoản tại Connect. Vui lòng nhấn vào nút bên dưới để kích hoạt tài khoản của bạn.
+                        </p>
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="%s" style="background-color: #FF5722; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 5px; display: inline-block;">
+                                Xác thực Email
+                            </a>
+                        </div>
+                        <p style="color: #999999; font-size: 14px; text-align: center;">
+                            Link này sẽ hết hạn sau 15 phút.
+                        </p>
+                        <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;">
+                        <p style="color: #aaaaaa; font-size: 12px; text-align: center;">
+                            © 2026 Connect. -  All rights reserved.
+                        </p>
+                    </div>
+                </div>
+                """.formatted(savedUser.getUsername(), link);
+        emailService.sendHtmlMessage(savedUser.getEmail(), "Xác thực tài khoản - Connect", htmlContent);
+        return savedUser;
     }
 
     @Override
@@ -137,31 +176,31 @@ public class AuthServiceImpl implements AuthService {
         tokenRepository.save(myToken);
         String link = "http://localhost:5173/reset-password?token=" + token;
         String htmlContent = """
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
-            <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <h1 style="color: #FF5722; margin: 0;">Connect.</h1>
-                </div>
-                <h2 style="color: #333333; margin-top: 0;">Yêu cầu đặt lại mật khẩu</h2>
-                <p style="color: #666666; font-size: 16px; line-height: 1.5;">
-                    Xin chào <strong>%s</strong>,<br><br>
-                    Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.
-                </p>
-                <div style="text-align: center; margin: 30px 0;">
-                    <a href="%s" style="background-color: #FF5722; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 5px; display: inline-block;">
-                        Đặt lại mật khẩu
-                    </a>
-                </div>
-                <p style="color: #999999; font-size: 14px; text-align: center;">
-                    Link này sẽ hết hạn sau 10 phút.
-                </p>
-                <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;">
-                <p style="color: #aaaaaa; font-size: 12px; text-align: center;">
-                    © 2026 Connect. -  All rights reserved.
-                </p>
-            </div>
-        </div>
-    """.formatted(user.getUsername(), link);
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
+                        <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                            <div style="text-align: center; margin-bottom: 20px;">
+                                <h1 style="color: #FF5722; margin: 0;">Connect.</h1>
+                            </div>
+                            <h2 style="color: #333333; margin-top: 0;">Yêu cầu đặt lại mật khẩu</h2>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.5;">
+                                Xin chào <strong>%s</strong>,<br><br>
+                                Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.
+                            </p>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="%s" style="background-color: #FF5722; color: #ffffff; text-decoration: none; padding: 12px 24px; font-size: 16px; font-weight: bold; border-radius: 5px; display: inline-block;">
+                                    Đặt lại mật khẩu
+                                </a>
+                            </div>
+                            <p style="color: #999999; font-size: 14px; text-align: center;">
+                                Link này sẽ hết hạn sau 10 phút.
+                            </p>
+                            <hr style="border: none; border-top: 1px solid #eeeeee; margin: 20px 0;">
+                            <p style="color: #aaaaaa; font-size: 12px; text-align: center;">
+                                © 2026 Connect. -  All rights reserved.
+                            </p>
+                        </div>
+                    </div>
+                """.formatted(user.getUsername(), link);
         emailService.sendHtmlMessage(email, "Yêu cầu đặt lại mật khẩu - Connect", htmlContent);
     }
 
@@ -179,5 +218,18 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         tokenRepository.delete(resetToken); // Mật khẩu đổi xong thì xóa token
+    }
+
+    @Override
+    public void verifyEmail(String token) {
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(token)
+                .orElseThrow(() -> new RuntimeException("Token không hợp lệ"));
+        if (verificationToken.getExpiryDate().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Token đã hết hạn");
+        }
+        User user = verificationToken.getUser();
+        user.setIsEnabled(true);
+        userRepository.save(user);
+        verificationTokenRepository.delete(verificationToken);
     }
 }

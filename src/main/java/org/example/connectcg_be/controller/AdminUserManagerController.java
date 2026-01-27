@@ -42,4 +42,29 @@ public class AdminUserManagerController {
         userService.updateUserRole(userId, newRole, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
+
+
+    @PatchMapping("/{userId}/lock")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> toggleLock(
+            @PathVariable Integer userId,
+            Authentication authentication
+    ) {
+        UserPrincipal admin = (UserPrincipal) authentication.getPrincipal();
+        userService.toggleLockUser(userId, admin.getId());
+        return ResponseEntity.ok().build();
+    }
+
+
+    @PatchMapping("/{userId}/delete")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteUser(
+            @PathVariable Integer userId,
+            Authentication authentication
+    ) {
+        UserPrincipal admin = (UserPrincipal) authentication.getPrincipal();
+        userService.softDeleteUser(userId, admin.getId());
+        return ResponseEntity.ok().build();
+    }
+
 }
