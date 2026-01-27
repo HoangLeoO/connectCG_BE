@@ -5,16 +5,17 @@ import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
-
-import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class UserServiceImpl implements UserService {
 
     @Autowired
@@ -37,6 +38,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     @Override
     public User findByIdUser(int id) {
@@ -162,4 +166,69 @@ public class UserServiceImpl implements UserService {
 
         return dto;
     }
+
+    public void toggleLockUser(Integer targetUserId, Integer adminId) {
+        guardSelfAction(targetUserId, adminId);
+
+        User user = getUser(targetUserId);
+
+        if ("ADMIN".equals(user.getRole()) && !Boolean.TRUE.equals(user.getIsLocked())) {
+            long activeAdmins = userRepository.countByRoleAndIsDeletedFalseAndIsLockedFalse("ADMIN");
+            if (activeAdmins <= 1) {
+                throw new RuntimeException("Không thể khóa Quản trị viên cuối cùng");
+            }
+        }
+
+        boolean locked = !Boolean.TRUE.equals(user.getIsLocked());
+        user.setIsLocked(locked);
+        userRepository.save(user);
+
+        if (locked) {
+            sendUserEvent(user.getUsername(), "LOCK", "Tài khoản của bạn đã bị khóa");
+        }
+    }
+
+
+    public void softDeleteUser(Integer targetUserId, Integer adminId) {
+        guardSelfAction(targetUserId, adminId);
+
+        User user = getUser(targetUserId);
+
+        if ("ADMIN".equals(user.getRole())) {
+            long activeAdmins = userRepository.countByRoleAndIsDeletedFalse("ADMIN");
+            if (activeAdmins <= 1) {
+                throw new RuntimeException("Không thể xóa Quản trị viên cuối cùng");
+            }
+        }
+
+        user.setIsDeleted(true);
+        userRepository.save(user);
+
+        sendUserEvent(user.getUsername(), "DELETE", "Tài khoản của bạn đã bị xóa");
+    }
+
+
+    private void guardSelfAction(Integer targetUserId, Integer adminId) {
+        if (adminId != null && adminId.equals(targetUserId)) {
+            throw new RuntimeException("Admin không thể tự thao tác trên chính mình");
+        }
+    }
+
+    private User getUser(Integer userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+    }
+
+    private void sendUserEvent(String username, String type, String message) {
+        if (username == null) {
+            return;
+        }
+        log.info("Sending {} message to user: {}", type, username);
+        messagingTemplate.convertAndSendToUser(
+                username,
+                "/queue/errors",
+                Map.of("type", type, "message", message)
+        );
+    }
+
 }
