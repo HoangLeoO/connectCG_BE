@@ -52,6 +52,10 @@ public class User {
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
+    @ColumnDefault("0")
+    @Column(name = "is_enabled")
+    private Boolean isEnabled = false; // Mặc định là false
+
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "created_at")
     private Instant createdAt;
