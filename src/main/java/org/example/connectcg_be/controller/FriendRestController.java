@@ -12,10 +12,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/friends")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class FriendRestController {
 
     private final FriendService friendService;
@@ -26,7 +26,7 @@ public class FriendRestController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String gender,
             @RequestParam(required = false) Integer cityId,
-            @PageableDefault(size = 10) Pageable pageable) {
+            @PageableDefault(size = 2) Pageable pageable) {
         Page<FriendDTO> friends = friendService.getFriends(userId, name, gender, cityId, pageable);
         return ResponseEntity.ok(friends);
     }

@@ -11,6 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -73,6 +76,27 @@ public class UserProfileServiceImpl implements UserProfileService {
         dto.setPostsCount(postRepository.countByAuthorIdAndIsDeletedFalse(targetUserId));
 
         return dto;
+    }
+
+    @Override
+    public Page<MemberSearchResponse> searchMembers(
+            Integer currentUserId,
+            String keyword,
+            String gender,
+            Integer cityId,
+            String maritalStatus,
+            String lookingFor,
+            Pageable pageable
+    ) {
+        Page<MemberSearchResponse> page = userProfileRepository.searchMembers(
+                currentUserId, keyword, gender, cityId, maritalStatus, lookingFor, pageable
+        );
+
+        page.getContent().forEach(dto -> {
+            dto.setAvatarUrl(getCurrentAvatar(dto.getUserId()));
+        });
+
+        return page;
     }
 
     private String determineRelationship(Integer targetUserId, Integer currentUserId) {
