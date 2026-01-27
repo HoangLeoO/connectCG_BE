@@ -22,7 +22,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity // Cho phép dùng @PreAuthorize ở Controller
+@EnableMethodSecurity // Cho phÃ©p dÃ¹ng @PreAuthorize á»Ÿ Controller
 public class SecurityConfig {
 
     @Autowired
@@ -33,7 +33,7 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Password trong DB của bạn là password_hash nên cần BCrypt để so sánh
+        // Password trong DB cá»§a báº¡n lÃ  password_hash nÃªn cáº§n BCrypt Ä‘á»ƒ so sÃ¡nh
         return new BCryptPasswordEncoder();
     }
 
@@ -53,12 +53,14 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                .cors(org.springframework.security.config.Customizer.withDefaults()) // Kích hoạt CORS
-                .csrf(AbstractHttpConfigurer::disable) // Tắt CSRF vì ta dùng Token
+                .cors(org.springframework.security.config.Customizer.withDefaults()) // KÃ­ch hoáº¡t CORS
+                .csrf(AbstractHttpConfigurer::disable) // Táº¯t CSRF vÃ¬ ta dÃ¹ng Token
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phép login/register không cần
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll() // Nếu có Swagger
-                        .anyRequest().authenticated() // Còn lại phải đăng nhập
+                        .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phÃ©p login/register khÃ´ng cáº§n
+                        // token
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll() // Náº¿u cÃ³ Swagger
+                        .anyRequest().authenticated() // CÃ²n láº¡i pháº£i Ä‘Äƒng nháº­p
                 )
                 .sessionManagement(sess -> sess
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))

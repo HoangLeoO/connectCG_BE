@@ -24,6 +24,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     // Source: https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-security
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
 
