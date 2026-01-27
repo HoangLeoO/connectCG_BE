@@ -120,8 +120,12 @@ public class GroupController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
     public ResponseEntity<String> deleteGroup(@PathVariable("id") Integer id, Authentication authentication) {
+        if (authentication == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
+            Integer currentUserId = userPrincipal.getId();
             groupService.deleteGroup(id, userPrincipal.getId());
             return ResponseEntity.ok("Deleted group successfully");
         } catch (RuntimeException e) {

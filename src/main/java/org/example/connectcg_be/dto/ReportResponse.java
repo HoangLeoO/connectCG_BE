@@ -6,6 +6,7 @@ import java.time.Instant;
 @Data
 public class ReportResponse {
     private Integer id;
+    private Integer reporterId;
     private String targetType;
     private Integer targetId;
     private String reason;

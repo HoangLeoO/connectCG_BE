@@ -10,6 +10,7 @@ import org.example.connectcg_be.repository.GroupRepository;
 import org.example.connectcg_be.repository.PostRepository;
 import org.example.connectcg_be.service.GroupService;
 import org.example.connectcg_be.service.MediaService;
+import org.example.connectcg_be.service.NotificationService;
 import org.example.connectcg_be.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -38,6 +39,8 @@ public class GroupServiceImpl implements GroupService {
     private org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
     @Autowired
     private org.example.connectcg_be.repository.NotificationRepository notificationRepository;
+    @Autowired
+    private NotificationService notificationService;
 
     @Override
     @Transactional
@@ -232,10 +235,10 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void leaveGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("NhÃ³m khÃ´ng tá»“n táº¡i"));
 
         if (group.getOwner().getId().equals(userId)) {
-            throw new RuntimeException("Admin nhóm không thể rời nhóm, hãy chọn admin trước");
+            throw new RuntimeException("Admin nhÃ³m khÃ´ng thá»ƒ rá»i nhÃ³m, hÃ£y chá»n admin trÆ°á»›c");
         }
 
         GroupMemberId memberId = new GroupMemberId();
@@ -250,12 +253,27 @@ public class GroupServiceImpl implements GroupService {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
 
-        if (!group.getOwner().getId().equals(userId)) {
-            throw new RuntimeException("Only the owner can delete the group");
+        User requester = userService.findByIdUser(userId);
+        // Cho phép xóa nếu là Owner hoặc Admin hệ thống
+        boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(userId);
+        boolean isSystemAdmin = requester != null && "ADMIN".equals(requester.getRole());
+        if (!isOwner && !isSystemAdmin) {
+            throw new RuntimeException("Chỉ chủ nhóm hoặc admin hệ thống mới có quyền xóa nhóm");
         }
 
         group.setIsDeleted(true);
         groupRepository.save(group);
+        User owner = group.getOwner();
+        if (owner != null) {
+            org.example.connectcg_be.dto.TungNotificationDTO noti = new org.example.connectcg_be.dto.TungNotificationDTO();
+            noti.setContent("Nhóm '" + group.getName() + "' của bạn đã bị xóa do vi phạm quy tắc cộng đồng.");
+            noti.setType("GROUP_DELETED");
+            noti.setTargetType("GROUP");
+            noti.setTargetId(groupId);
+
+            // Gọi hàm vừa viết để lưu DB + Gửi WebSocket
+            notificationService.sendNotification(noti, owner);
+        }
     }
 
     @Override
@@ -270,7 +288,7 @@ public class GroupServiceImpl implements GroupService {
         actorPk.setUserId(actorId);
         GroupMember actorMember = groupMemberRepository.findById(actorPk).orElse(null);
         if (actorMember == null || !"ACCEPTED".equals(actorMember.getStatus())) {
-            throw new RuntimeException("Chỉ thành viên trong nhóm mới có quyền mời người khác.");
+            throw new RuntimeException("Chá»‰ thÃ nh viÃªn trong nhÃ³m má»›i cÃ³ quyá»n má»i ngÆ°á»i khÃ¡c.");
         }
 
         for (Integer userId : userIds) {
@@ -402,10 +420,10 @@ public class GroupServiceImpl implements GroupService {
             GroupMember existing = groupMemberRepository.findById(id).orElse(null);
             if (existing != null) {
                 if ("ACCEPTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("Bạn đã là thành viên của nhóm này rồi.");
+                    throw new RuntimeException("Báº¡n Ä‘Ã£ lÃ  thÃ nh viÃªn cá»§a nhÃ³m nÃ y rá»“i.");
                 }
                 if ("REQUESTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("Yêu cầu tham gia của bạn đang chờ phê duyệt.");
+                    throw new RuntimeException("YÃªu cáº§u tham gia cá»§a báº¡n Ä‘ang chá» phÃª duyá»‡t.");
                 }
                 if ("PENDING".equals(existing.getStatus())) {
                     // If user has an invitation and tries to join manually:
@@ -417,7 +435,7 @@ public class GroupServiceImpl implements GroupService {
                         return;
                     }
                     throw new RuntimeException(
-                            "Bạn có một lời mời tham gia nhóm này. Vui lòng chấp nhận trong tab Lời mời.");
+                            "Báº¡n cÃ³ má»™t lá»i má»i tham gia nhÃ³m nÃ y. Vui lÃ²ng cháº¥p nháº­n trong tab Lá»i má»i.");
                 }
             }
         }
@@ -475,7 +493,7 @@ public class GroupServiceImpl implements GroupService {
         notification.setTargetId(groupId);
         notification.setIsRead(false);
         notification.setCreatedAt(Instant.now());
-        notification.setContent("Bạn đã tham gia vào nhóm " + member.getGroup().getName());
+        notification.setContent("Báº¡n Ä‘Ã£ tham gia vÃ o nhÃ³m " + member.getGroup().getName());
         notificationRepository.save(notification);
     }
 
@@ -499,7 +517,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     public List<TungGroupMemberDTO> getPendingJoinRequests(Integer groupId, Integer adminId) {
         groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại hoặc đã bị xóa"));
+                .orElseThrow(() -> new RuntimeException("NhÃ³m khÃ´ng tá»“n táº¡i hoáº·c Ä‘Ã£ bá»‹ xÃ³a"));
 
         return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "REQUESTED").stream().map(member -> {
             org.example.connectcg_be.entity.UserAvatar avatar = userAvatarRepository
@@ -560,39 +578,39 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId) {
-        // 1. Tìm nhóm và validate Owner hiện tại
+        // 1. TÃ¬m nhÃ³m vÃ  validate Owner hiá»‡n táº¡i
         Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("NhÃ³m khÃ´ng tá»“n táº¡i"));
 
         if (!group.getOwner().getId().equals(currentOwnerId)) {
-            throw new RuntimeException("Chỉ chủ sở hữu mới có quyền chuyển nhượng");
+            throw new RuntimeException("Chá»‰ chá»§ sá»Ÿ há»¯u má»›i cÃ³ quyá»n chuyá»ƒn nhÆ°á»£ng");
         }
 
-        // 2. Validate không thể chuyển cho chính mình
+        // 2. Validate khÃ´ng thá»ƒ chuyá»ƒn cho chÃ­nh mÃ¬nh
         if (newOwnerId.equals(currentOwnerId)) {
-            throw new RuntimeException("Không thể chuyển quyền cho chính mình");
+            throw new RuntimeException("KhÃ´ng thá»ƒ chuyá»ƒn quyá»n cho chÃ­nh mÃ¬nh");
         }
 
-        // 3. Tìm Owner mới
+        // 3. TÃ¬m Owner má»›i
         User newOwner = userService.findByIdUser(newOwnerId);
 
-        // 4. Tìm membership của Owner mới
+        // 4. TÃ¬m membership cá»§a Owner má»›i
         GroupMemberId newOwnerMemberId = new GroupMemberId();
         newOwnerMemberId.setGroupId(groupId);
         newOwnerMemberId.setUserId(newOwnerId);
 
         GroupMember newOwnerMember = groupMemberRepository.findById(newOwnerMemberId)
-                .orElseThrow(() -> new RuntimeException("Người được chọn không phải thành viên nhóm"));
+                .orElseThrow(() -> new RuntimeException("NgÆ°á»i Ä‘Æ°á»£c chá»n khÃ´ng pháº£i thÃ nh viÃªn nhÃ³m"));
 
-        // 5. Chuyển quyền Owner trong bảng Group
+        // 5. Chuyá»ƒn quyá»n Owner trong báº£ng Group
         group.setOwner(newOwner);
         groupRepository.save(group);
 
-        // 6. Cập nhật role của Owner mới thành ADMIN (nếu chưa phải)
+        // 6. Cáº­p nháº­t role cá»§a Owner má»›i thÃ nh ADMIN (náº¿u chÆ°a pháº£i)
         newOwnerMember.setRole("ADMIN");
         groupMemberRepository.save(newOwnerMember);
 
-        // 7. Xóa membership của Owner cũ (tự động rời nhóm)
+        // 7. XÃ³a membership cá»§a Owner cÅ© (tá»± Ä‘á»™ng rá»i nhÃ³m)
         GroupMemberId oldOwnerMemberId = new GroupMemberId();
         oldOwnerMemberId.setGroupId(groupId);
         oldOwnerMemberId.setUserId(currentOwnerId);
@@ -607,7 +625,7 @@ public class GroupServiceImpl implements GroupService {
         notification.setTargetId(groupId);
         notification.setIsRead(false);
         notification.setCreatedAt(Instant.now());
-        notification.setContent("Bạn đã được chuyển quyền sở hữu nhóm " + group.getName());
+        notification.setContent("Báº¡n Ä‘Ã£ Ä‘Æ°á»£c chuyá»ƒn quyá»n sá»Ÿ há»¯u nhÃ³m " + group.getName());
         notificationRepository.save(notification);
     }
 
@@ -615,61 +633,61 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId) {
         Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("NhÃ³m khÃ´ng tá»“n táº¡i"));
 
-        // 1. Phân quyền: Ai có quyền thực hiện?
+        // 1. PhÃ¢n quyá»n: Ai cÃ³ quyá»n thá»±c hiá»‡n?
         GroupMemberId actorPk = new GroupMemberId();
         actorPk.setGroupId(groupId);
         actorPk.setUserId(actorId);
         GroupMember actor = groupMemberRepository.findById(actorPk)
-                .orElseThrow(() -> new RuntimeException("Bạn không phải thành viên nhóm"));
+                .orElseThrow(() -> new RuntimeException("Báº¡n khÃ´ng pháº£i thÃ nh viÃªn nhÃ³m"));
 
         boolean isActorOwner = group.getOwner().getId().equals(actorId);
         boolean isActorAdmin = "ADMIN".equals(actor.getRole());
 
         if (!isActorOwner && !isActorAdmin) {
-            throw new RuntimeException("Chỉ Quản trị viên mới có quyền đổi vai trò");
+            throw new RuntimeException("Chá»‰ Quáº£n trá»‹ viÃªn má»›i cÃ³ quyá»n Ä‘á»•i vai trÃ²");
         }
 
-        // 2. Tìm thành viên mục tiêu
+        // 2. TÃ¬m thÃ nh viÃªn má»¥c tiÃªu
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         GroupMember target = groupMemberRepository.findById(targetPk)
-                .orElseThrow(() -> new RuntimeException("Người dùng không phải thành viên nhóm"));
+                .orElseThrow(() -> new RuntimeException("NgÆ°á»i dÃ¹ng khÃ´ng pháº£i thÃ nh viÃªn nhÃ³m"));
 
-        // 3. Xử lý các trường hợp đặc biệt
+        // 3. Xá»­ lÃ½ cÃ¡c trÆ°á»ng há»£p Ä‘áº·c biá»‡t
         if (targetUserId.equals(actorId)) {
-            throw new RuntimeException("Bạn không thể tự đổi vai trò của chính mình");
+            throw new RuntimeException("Báº¡n khÃ´ng thá»ƒ tá»± Ä‘á»•i vai trÃ² cá»§a chÃ­nh mÃ¬nh");
         }
 
-        // Nếu người bị đổi là Owner, không ai được đụng vào trừ khi chính Owner chuyển
-        // quyền
+        // Náº¿u ngÆ°á»i bá»‹ Ä‘á»•i lÃ  Owner, khÃ´ng ai Ä‘Æ°á»£c Ä‘á»¥ng vÃ o trá»« khi chÃ­nh Owner chuyá»ƒn
+        // quyá»n
         boolean isTargetOwner = group.getOwner().getId().equals(targetUserId);
         if (isTargetOwner && !"ADMIN".equals(newRole)) {
-            throw new RuntimeException("Chủ nhóm bắt buộc phải có quyền Admin");
+            throw new RuntimeException("Chá»§ nhÃ³m báº¯t buá»™c pháº£i cÃ³ quyá»n Admin");
         }
 
-        // 4. Thực hiện thay đổi (Chỉ cho phép chuyển quyền Owner)
+        // 4. Thá»±c hiá»‡n thay Ä‘á»•i (Chá»‰ cho phÃ©p chuyá»ƒn quyá»n Owner)
         if (!"OWNER".equals(newRole)) {
-            throw new RuntimeException("Chỉ có thể chuyển quyền chủ sở hữu, không thể thêm quản trị viên khác");
+            throw new RuntimeException("Chá»‰ cÃ³ thá»ƒ chuyá»ƒn quyá»n chá»§ sá»Ÿ há»¯u, khÃ´ng thá»ƒ thÃªm quáº£n trá»‹ viÃªn khÃ¡c");
         }
 
         if (!isActorOwner) {
-            throw new RuntimeException("Chỉ chủ nhóm hiện tại mới có quyền chuyển nhượng nhóm");
+            throw new RuntimeException("Chá»‰ chá»§ nhÃ³m hiá»‡n táº¡i má»›i cÃ³ quyá»n chuyá»ƒn nhÆ°á»£ng nhÃ³m");
         }
 
-        // Chuyển quyền chủ nhóm
+        // Chuyá»ƒn quyá»n chá»§ nhÃ³m
         group.setOwner(target.getUser());
         groupRepository.save(group);
 
-        // Người mới là Admin, người cũ trở về làm Thành viên thường
+        // NgÆ°á»i má»›i lÃ  Admin, ngÆ°á»i cÅ© trá»Ÿ vá» lÃ m ThÃ nh viÃªn thÆ°á»ng
         target.setRole("ADMIN");
         actor.setRole("MEMBER");
         groupMemberRepository.save(target);
         groupMemberRepository.save(actor);
 
-        // Thông báo cho Owner mới
+        // ThÃ´ng bÃ¡o cho Owner má»›i
         Notification n = new Notification();
         n.setUser(target.getUser());
         n.setActor(actor.getUser());
@@ -678,7 +696,8 @@ public class GroupServiceImpl implements GroupService {
         n.setTargetId(groupId);
         n.setIsRead(false);
         n.setCreatedAt(Instant.now());
-        n.setContent("Bạn đã được chuyển quyền sở hữu nhóm " + group.getName());
+        n.setContent("Báº¡n Ä‘Ã£ Ä‘Æ°á»£c chuyá»ƒn quyá»n sá»Ÿ há»¯u nhÃ³m " + group.getName());
         notificationRepository.save(n);
     }
 }
+

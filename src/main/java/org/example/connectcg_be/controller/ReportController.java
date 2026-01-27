@@ -7,6 +7,7 @@ import org.example.connectcg_be.entity.Report;
 import org.example.connectcg_be.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.security.Principal;
 
 import java.util.List;
 
@@ -25,8 +26,13 @@ public class ReportController {
     // GỬI REPORT
     // =========================
     @PostMapping
-    public ResponseEntity<?> createReport(@RequestBody ReportRequest request) {
-        reportService.createReport(request, "anonymous");
+    public ResponseEntity<?> createReport(@RequestBody ReportRequest request, Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(401).body("Bạn cần đăng nhập để gửi báo cáo");
+        }
+        String currentUsername = principal.getName();
+        reportService.createReport(request, currentUsername);
+
         return ResponseEntity.ok("Report submitted successfully");
     }
 

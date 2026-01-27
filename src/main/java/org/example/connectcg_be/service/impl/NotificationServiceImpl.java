@@ -7,6 +7,7 @@ import org.example.connectcg_be.entity.UserAvatar;
 import org.example.connectcg_be.repository.NotificationRepository;
 import org.example.connectcg_be.repository.UserAvatarRepository;
 import org.example.connectcg_be.service.NotificationService;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserAvatarRepository userAvatarRepository;
+    private final SimpMessagingTemplate messagingTemplate; // 1. Inject cái này
+
 
     @Override
     @Transactional(readOnly = true)
@@ -42,6 +45,29 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public void deleteNotification(Integer notificationId) {
         notificationRepository.deleteById(notificationId);
+    }
+    @Transactional
+    @Override
+    public void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver) {
+        Notification entity = new Notification();
+        entity.setUser(receiver); // Người nhận
+        entity.setContent(dto.getContent());
+        entity.setType(dto.getType());
+        entity.setTargetType(dto.getTargetType());
+        entity.setTargetId(dto.getTargetId());
+        entity.setIsRead(false);
+        entity.setCreatedAt(java.time.Instant.now());
+        Notification saved = notificationRepository.save(entity);
+        dto.setId(saved.getId());
+        dto.setCreatedAt(saved.getCreatedAt());
+        dto.setIsRead(false);
+        dto.setActorName("System");
+        dto.setActorAvatar("https://cdn-icons-png.flaticon.com/512/149/149071.png");
+        messagingTemplate.convertAndSendToUser(
+                receiver.getUsername(),
+                "/queue/notifications",
+                dto
+        );
     }
 
     private TungNotificationDTO mapToDTO(Notification notification) {

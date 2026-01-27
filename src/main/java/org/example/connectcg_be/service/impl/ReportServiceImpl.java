@@ -4,17 +4,31 @@ import org.example.connectcg_be.dto.ReportAdminUpdateRequest;
 import org.example.connectcg_be.dto.ReportRequest;
 import org.example.connectcg_be.dto.ReportResponse;
 import org.example.connectcg_be.entity.Report;
+import org.example.connectcg_be.entity.User;
 import org.example.connectcg_be.repository.ReportRepository;
+import org.example.connectcg_be.repository.UserRepository;
+import org.example.connectcg_be.service.NotificationService;
 import org.example.connectcg_be.service.ReportService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
+
 @Service
 public class ReportServiceImpl implements ReportService {
+    private final NotificationService notificationService;
+
 
     @Autowired
     private ReportRepository reportRepository;
+
+    @Autowired
+    private UserRepository userRepository; // 1. Cần thêm cái này
+
+    public ReportServiceImpl(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
 
     @Override
     public List<ReportResponse> getAllReports() {
@@ -38,6 +52,7 @@ public class ReportServiceImpl implements ReportService {
 
         if (report.getReporter() != null) {
             dto.setReporterUsername(report.getReporter().getUsername());
+            dto.setReporterId(report.getReporter().getId());
         }
         if (report.getReviewer() != null) {
             dto.setReviewerUsername(report.getReviewer().getUsername());
@@ -54,11 +69,22 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public void createReport(ReportRequest request, String username) {
+        // 2. Tìm người dùng đang báo cáo
+        User reporter = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found: " + username));
+
         Report report = new Report();
         report.setReason(request.getReason());
-        report.setTargetType(request.getTargetType());
+
+        // Đảm bảo targetType viết hoa để khớp với Check Constraint trong DB (USER, GROUP, POST)
+        report.setTargetType(request.getTargetType().toUpperCase());
+
         report.setTargetId(request.getTargetId());
         report.setStatus("PENDING");
+
+        // 3. Quan trọng: Gán người báo cáo vào
+        report.setReporter(reporter);
+        report.setCreatedAt(Instant.now());
         reportRepository.save(report);
     }
 
@@ -66,6 +92,14 @@ public class ReportServiceImpl implements ReportService {
     public void updateReport(Integer id, ReportAdminUpdateRequest request, String adminUsername) {
         Report report = getReportById(id);
         report.setStatus(request.getStatus());
+
+        // Nếu chuyển trạng thái khác PENDING, lưu vết người duyệt
+        if (!"PENDING".equalsIgnoreCase(request.getStatus())) {
+            User admin = userRepository.findByUsername(adminUsername)
+                    .orElseThrow(() -> new RuntimeException("Admin not found"));
+            report.setReviewer(admin);
+        }
+
         reportRepository.save(report);
     }
 }

@@ -1,6 +1,7 @@
 package org.example.connectcg_be.service;
 
 import org.example.connectcg_be.dto.TungNotificationDTO;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -10,4 +11,7 @@ public interface NotificationService {
     void markAsRead(Integer notificationId);
 
     void deleteNotification(Integer notificationId);
+
+    @Transactional
+    void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver);
 }
