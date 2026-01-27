@@ -23,6 +23,10 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException(
                         "Không tìm thấy user với username hoặc email: " + usernameOrEmail));
 
+        System.out.println("DEBUG LOGIN: User found: " + user.getUsername());
+        System.out.println("DEBUG LOGIN: DB isEnabled value: " + user.getIsEnabled());
+        System.out.println("DEBUG LOGIN: UserPrincipal expects: " + user.getIsEnabled());
+
         return UserPrincipal.create(user);
     }
 
