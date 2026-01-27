@@ -18,11 +18,15 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Intege
 
     @Query("SELECT new org.example.connectcg_be.dto.MemberSearchResponse(" +
            "u.id, u.username, p.fullName, c.name, p.gender, p.maritalStatus, p.lookingFor, " +
-           "(CASE WHEN f.id.userId IS NOT NULL THEN true ELSE false END)) " +
+           "(CASE WHEN f.id.userId IS NOT NULL THEN true ELSE false END), " +
+           "(CASE WHEN fr.id IS NOT NULL THEN true ELSE false END), " +
+           "fr.id, " +
+           "(CASE WHEN fr.receiver.id = :currentUserId THEN true ELSE false END)) " +
            "FROM UserProfile p " +
            "JOIN p.user u " +
            "LEFT JOIN p.city c " +
            "LEFT JOIN Friend f ON (f.user.id = :currentUserId AND f.friend.id = u.id) " +
+           "LEFT JOIN FriendRequest fr ON ((fr.sender.id = :currentUserId AND fr.receiver.id = u.id AND fr.status = 'PENDING') OR (fr.sender.id = u.id AND fr.receiver.id = :currentUserId AND fr.status = 'PENDING')) " +
            "WHERE (:keyword IS NULL OR lower(p.fullName) LIKE lower(concat('%', :keyword, '%')) OR lower(u.username) LIKE lower(concat('%', :keyword, '%'))) " +
            "AND (:gender IS NULL OR p.gender = :gender) " +
            "AND (:cityId IS NULL OR p.city.id = :cityId) " +

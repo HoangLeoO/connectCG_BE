@@ -19,10 +19,13 @@ public class MemberSearchResponse {
     private String maritalStatus;
     private String lookingFor;
     private Boolean isFriend;
+    private Boolean requestSent;
+    private Integer requestId;
+    private Boolean isRequestReceiver;
     private Long mutualFriends;
 
     // Constructor for JPQL projection
-    public MemberSearchResponse(Integer userId, String username, String fullName, String cityName, String gender, String maritalStatus, String lookingFor, Boolean isFriend) {
+    public MemberSearchResponse(Integer userId, String username, String fullName, String cityName, String gender, String maritalStatus, String lookingFor, Boolean isFriend, Boolean requestSent, Integer requestId, Boolean isRequestReceiver) {
         this.userId = userId;
         this.username = username;
         this.fullName = fullName;
@@ -31,5 +34,8 @@ public class MemberSearchResponse {
         this.maritalStatus = maritalStatus;
         this.lookingFor = lookingFor;
         this.isFriend = isFriend;
+        this.requestSent = requestSent;
+        this.requestId = requestId;
+        this.isRequestReceiver = isRequestReceiver;
     }
 }
