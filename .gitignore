@@ -38,5 +38,5 @@ out/
 
 ### Custom Ignore ###
 docs/
-src/main/resources/application.properties
+
 .env
