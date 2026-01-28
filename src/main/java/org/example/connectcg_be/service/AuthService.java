@@ -1,6 +1,7 @@
 package org.example.connectcg_be.service;
 
 import org.example.connectcg_be.dto.CreatProfileRequest;
+import org.example.connectcg_be.dto.JwtResponse;
 import org.example.connectcg_be.dto.RegisterRequest;
 import org.example.connectcg_be.entity.User;
 import org.example.connectcg_be.entity.UserProfile;
@@ -15,4 +16,5 @@ public interface AuthService {
     void resetPassword(String token, String newPassword);
 
     void verifyEmail(String token);
+
 }
