@@ -13,7 +13,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "hobbies", schema = "connectcg_be")
+@Table(name = "hobbies")
 public class Hobby {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

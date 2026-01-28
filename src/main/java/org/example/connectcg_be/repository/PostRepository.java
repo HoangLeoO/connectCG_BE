@@ -11,4 +11,6 @@ public interface PostRepository extends JpaRepository<Post, Integer> {
     long countByGroupIdAndStatus(Integer groupId, String status);
 
     java.util.List<Post> findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(Integer groupId, String status);
+
+    java.util.List<Post> findAllByGroupIdIsNullAndIsDeletedFalse();
 }

@@ -18,7 +18,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "reactions", schema = "connectcg_be")
+@Table(name = "reactions")
 public class Reaction {
     @EmbeddedId
     private ReactionId id;

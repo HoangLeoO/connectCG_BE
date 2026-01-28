@@ -13,5 +13,6 @@ public class ReportResponse {
     private String status;
     private String reporterUsername;
     private String reviewerUsername;
+    private Integer groupId; // Added for frontend navigation
     private Instant createdAt;
 }

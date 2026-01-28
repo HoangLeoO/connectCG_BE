@@ -9,7 +9,7 @@ import org.hibernate.annotations.OnDeleteAction;
 @Getter
 @Setter
 @Entity
-@Table(name = "user_hobbies", schema = "connectcg_be")
+@Table(name = "user_hobbies")
 public class UserHobby {
     @EmbeddedId
     private UserHobbyId id;

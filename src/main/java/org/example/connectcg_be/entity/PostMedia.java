@@ -14,7 +14,7 @@ import org.hibernate.annotations.OnDeleteAction;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "post_media", schema = "connectcg_be")
+@Table(name = "post_media")
 public class PostMedia {
     @EmbeddedId
     private PostMediaId id;

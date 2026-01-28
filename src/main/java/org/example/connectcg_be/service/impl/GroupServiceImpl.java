@@ -202,7 +202,10 @@ public class GroupServiceImpl implements GroupService {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
 
-        if ("PRIVATE".equals(group.getPrivacy())) {
+        User requesterUser = userService.findByIdUser(requesterId);
+        boolean isSystemAdmin = "ADMIN".equals(requesterUser.getRole());
+
+        if ("PRIVATE".equals(group.getPrivacy()) && !isSystemAdmin) {
             GroupMemberId id = new GroupMemberId();
             id.setGroupId(groupId);
             id.setUserId(requesterId);

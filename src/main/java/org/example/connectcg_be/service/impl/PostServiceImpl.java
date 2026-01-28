@@ -33,6 +33,12 @@ public class PostServiceImpl implements PostService {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private org.example.connectcg_be.service.GeminiService geminiService;
+
+    @Autowired
+    private org.example.connectcg_be.repository.GroupRepository groupRepository;
+
     @Override
     public List<GroupPostDTO> getPendingPosts(Integer groupId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
@@ -130,5 +136,53 @@ public class PostServiceImpl implements PostService {
         notification.setCreatedAt(Instant.now());
         notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối.");
         notificationRepository.save(notification);
+    }
+
+    @Override
+    @Transactional
+    public Post createPost(org.example.connectcg_be.dto.CreatePostRequest request, boolean skipAiCheck,
+            Integer userId) {
+        User author = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Post post = new Post();
+        post.setAuthor(author);
+        post.setContent(request.getContent());
+        post.setVisibility(request.getVisibility() != null ? request.getVisibility() : "PUBLIC");
+        post.setCreatedAt(Instant.now());
+        post.setUpdatedAt(Instant.now());
+        post.setIsDeleted(false);
+        post.setCommentCount(0);
+        post.setReactCount(0);
+        post.setShareCount(0);
+
+        // Set group if provided
+        if (request.getGroupId() != null) {
+            Group group = groupRepository.findById(request.getGroupId())
+                    .orElseThrow(() -> new RuntimeException("Group not found"));
+            post.setGroup(group);
+        }
+
+        // AI Moderation Logic
+        if (skipAiCheck) {
+            // Skip AI check - approve directly
+            post.setStatus("APPROVED");
+            post.setAiStatus("NOT_CHECKED");
+        } else {
+            // Check with Gemini AI
+            String aiResult = geminiService.checkPostContent(request.getContent());
+            post.setCheckedAt(Instant.now());
+
+            if ("TOXIC".equals(aiResult)) {
+                post.setStatus("PENDING");
+                post.setAiStatus("TOXIC");
+                post.setAiReason("Content flagged by AI for manual review");
+            } else {
+                post.setStatus("APPROVED");
+                post.setAiStatus("SAFE");
+            }
+        }
+
+        return postRepository.save(post);
     }
 }

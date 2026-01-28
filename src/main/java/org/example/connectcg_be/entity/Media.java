@@ -1,5 +1,6 @@
 package org.example.connectcg_be.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,7 +19,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "media", schema = "connectcg_be")
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+@Table(name = "media")
 public class Media {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
