@@ -18,4 +18,7 @@ public class GroupPostDTO {
     private String authorFullName;
     private String authorAvatar;
     private List<String> images;
+    private String approvedByFullName;
+    private String aiStatus;
+    private String visibility;
 }

@@ -74,8 +74,9 @@ public class GeminiServiceImpl implements GeminiService {
             }
         } catch (Exception e) {
             System.err.println("Gemini API call failed: " + e.getMessage());
+            return "NOT_CHECKED";
         }
 
-        return "SAFE"; // Fallback to SAFE
+        return "NOT_CHECKED"; // Fallback to safe-pending
     }
 }

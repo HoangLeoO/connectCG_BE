@@ -3,9 +3,7 @@ package org.example.connectcg_be.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreatePostRequest;
 import org.example.connectcg_be.entity.Post;
-import org.example.connectcg_be.repository.PostRepository;
 import org.example.connectcg_be.security.UserPrincipal;
-import org.example.connectcg_be.service.GeminiService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,7 +12,6 @@ import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.Map;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -22,24 +19,24 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class PostController {
 
-    private final PostRepository postRepository;
-    private final GeminiService geminiService;
     private final org.example.connectcg_be.service.PostService postService;
 
-    @GetMapping("/admin/homepage")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<List<Post>> getHomepagePosts() {
-        return ResponseEntity.ok(postRepository.findAllByGroupIdIsNullAndIsDeletedFalse());
+    @GetMapping("/public/homepage")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<Post>> getPublicHomepagePosts() {
+        return ResponseEntity.ok(postService.getHomepagePostsByStatus("APPROVED"));
     }
 
-    @PostMapping("/admin/{id}/check-ai")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<Map<String, String>> checkPostWithAI(@PathVariable Integer id) {
-        Post post = postRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Post not found"));
+    @GetMapping("/admin/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<org.example.connectcg_be.dto.GroupPostDTO>> getPendingHomepagePosts() {
+        return ResponseEntity.ok(postService.getPendingHomepagePosts());
+    }
 
-        String result = geminiService.checkPostContent(post.getContent());
-        return ResponseEntity.ok(Map.of("result", result));
+    @GetMapping("/admin/audit")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<org.example.connectcg_be.dto.GroupPostDTO>> getAuditHomepagePosts() {
+        return ResponseEntity.ok(postService.getAuditHomepagePosts());
     }
 
     @PostMapping
@@ -51,5 +48,32 @@ public class PostController {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         Post createdPost = postService.createPost(request, skipAiCheck, userPrincipal.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdPost);
+    }
+
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> approvePost(@PathVariable Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        postService.approvePost(id, userPrincipal.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Post> updatePost(
+            @PathVariable Integer id,
+            @Valid @RequestBody CreatePostRequest request,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        Post updatedPost = postService.updatePost(id, request, userPrincipal.getId());
+        return ResponseEntity.ok(updatedPost);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deletePost(@PathVariable Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        postService.rejectPost(id, userPrincipal.getId());
+        return ResponseEntity.ok().build();
     }
 }

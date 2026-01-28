@@ -88,4 +88,8 @@ public class Post {
     @Column(name = "checked_at")
     private Instant checkedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by_id")
+    private User approvedBy;
+
 }

@@ -1,6 +1,5 @@
 package org.example.connectcg_be.config;
 
-import org.example.connectcg_be.security.CustomUserDetailsService;
 import org.example.connectcg_be.security.JwtAuthenticationFilter;
 import org.example.connectcg_be.security.oauth2.CustomOAuth2UserService;
 import org.example.connectcg_be.security.oauth2.OAuth2LoginSuccessHandler;
@@ -42,7 +41,8 @@ public class SecurityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Password trong DB cá»§a báº¡n lÃ  password_hash nÃªn cáº§n BCrypt Ä‘á»ƒ so sÃ¡nh
+        // Password trong DB cá»§a báº¡n lÃ  password_hash nÃªn cáº§n BCrypt Ä‘á»ƒ so
+        // sÃ¡nh
         return new BCryptPasswordEncoder();
     }
 
@@ -65,7 +65,8 @@ public class SecurityConfig {
                 .cors(org.springframework.security.config.Customizer.withDefaults()) // KÃ­ch hoáº¡t CORS
                 .csrf(AbstractHttpConfigurer::disable) // Táº¯t CSRF vÃ¬ ta dÃ¹ng Token
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phÃ©p login/register khÃ´ng cáº§n
+                        .requestMatchers("/api/v1/auth/**", "/error").permitAll() // Cho phÃ©p login/register khÃ´ng
+                                                                                  // cáº§n
                         // token
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll() // Náº¿u cÃ³ Swagger

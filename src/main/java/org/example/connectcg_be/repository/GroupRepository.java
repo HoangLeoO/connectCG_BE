@@ -11,7 +11,7 @@ import java.util.List;
 @Repository
 public interface GroupRepository extends JpaRepository<Group, Integer> {
 
-    @Query("SELECT g FROM Group g WHERE g.id NOT IN (SELECT gm.group.id FROM GroupMember gm WHERE gm.user.id = :userId) AND g.isDeleted = false")
+    @Query("SELECT g FROM Group g WHERE g.id NOT IN (SELECT gm.group.id FROM GroupMember gm WHERE gm.user.id = :userId AND gm.status IN ('ACCEPTED', 'PENDING')) AND g.isDeleted = false")
     List<Group> findDiscoverGroups(@Param("userId") Integer userId);
 
     List<Group> findAllByIsDeletedFalse();

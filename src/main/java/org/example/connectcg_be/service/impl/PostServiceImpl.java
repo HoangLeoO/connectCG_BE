@@ -84,7 +84,33 @@ public class PostServiceImpl implements PostService {
                 .collect(Collectors.toList());
         dto.setImages(images);
 
+        // Moderation fields
+        dto.setAiStatus(post.getAiStatus());
+        dto.setVisibility(post.getVisibility());
+
+        if (post.getApprovedBy() != null) {
+            userProfileRepository.findByUserId(post.getApprovedBy().getId()).ifPresent(profile -> {
+                dto.setApprovedByFullName(profile.getFullName());
+            });
+            if (dto.getApprovedByFullName() == null) {
+                dto.setApprovedByFullName(post.getApprovedBy().getUsername());
+            }
+        }
+
         return dto;
+    }
+
+    @Override
+    public List<GroupPostDTO> getPendingHomepagePosts() {
+        return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc("PENDING")
+                .stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<GroupPostDTO> getAuditHomepagePosts() {
+        return postRepository
+                .findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc("APPROVED", "TOXIC")
+                .stream().map(this::convertToDTO).collect(Collectors.toList());
     }
 
     @Override
@@ -92,15 +118,15 @@ public class PostServiceImpl implements PostService {
     public void approvePost(Integer postId, Integer adminId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
 
         post.setStatus("APPROVED");
+        post.setApprovedBy(admin);
         post.setUpdatedAt(Instant.now());
         postRepository.save(post);
 
         // Send Notification
-        User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new RuntimeException("Admin not found"));
-
         Notification notification = new Notification();
         notification.setUser(post.getAuthor());
         notification.setActor(admin);
@@ -109,7 +135,11 @@ public class PostServiceImpl implements PostService {
         notification.setTargetId(post.getId());
         notification.setIsRead(false);
         notification.setCreatedAt(Instant.now());
-        notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã được phê duyệt.");
+        if (post.getGroup() != null) {
+            notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã được phê duyệt.");
+        } else {
+            notification.setContent("Bài viết của bạn trên trang chủ đã được phê duyệt.");
+        }
         notificationRepository.save(notification);
     }
 
@@ -119,23 +149,29 @@ public class PostServiceImpl implements PostService {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
-        // Hard delete the post as requested by user
-        postRepository.delete(post);
-
-        // Send Notification
+        // Send Notification BEFORE deletion to ensure IDs are valid in memory
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
 
         Notification notification = new Notification();
         notification.setUser(post.getAuthor());
         notification.setActor(admin);
-        notification.setType("OTHER"); // Changed from POST_REJECTED to bypass DB check constraint
-        notification.setTargetType("GROUP");
-        notification.setTargetId(post.getGroup().getId());
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối.");
+        notification.setType("OTHER");
+
+        if (post.getGroup() != null) {
+            notification.setTargetType("GROUP");
+            notification.setTargetId(post.getGroup().getId());
+            notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối.");
+        } else {
+            notification.setTargetType("USER");
+            notification.setTargetId(post.getAuthor().getId());
+            notification.setContent("Bài viết của bạn trên trang chủ đã bị từ chối và gỡ bỏ.");
+        }
         notificationRepository.save(notification);
+
+        // Hard delete the post record
+        postRepository.delete(post);
+        postRepository.flush(); // Force sync to DB to catch any 500 errors here
     }
 
     @Override
@@ -173,16 +209,60 @@ public class PostServiceImpl implements PostService {
             String aiResult = geminiService.checkPostContent(request.getContent());
             post.setCheckedAt(Instant.now());
 
-            if ("TOXIC".equals(aiResult)) {
-                post.setStatus("PENDING");
-                post.setAiStatus("TOXIC");
-                post.setAiReason("Content flagged by AI for manual review");
-            } else {
+            if ("SAFE".equals(aiResult)) {
                 post.setStatus("APPROVED");
                 post.setAiStatus("SAFE");
+            } else {
+                post.setStatus("PENDING");
+                post.setAiStatus(aiResult); // TOXIC or NOT_CHECKED
+                post.setAiReason(
+                        "SAFE".equals(aiResult) ? null : "Content requires manual review (Flagged or AI Error)");
             }
         }
 
         return postRepository.save(post);
+    }
+
+    @Override
+    @Transactional
+    public Post updatePost(Integer postId, org.example.connectcg_be.dto.CreatePostRequest request, Integer userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
+
+        if (!post.getAuthor().getId().equals(userId)) {
+            throw new RuntimeException("Bạn không có quyền chỉnh sửa bài viết này");
+        }
+
+        // Check if content changed to re-trigger moderation
+        boolean contentChanged = !post.getContent().equals(request.getContent());
+
+        post.setContent(request.getContent());
+        post.setVisibility(request.getVisibility());
+        post.setUpdatedAt(Instant.now());
+
+        if (contentChanged) {
+            // Re-trigger AI Moderation on new content
+            String aiResult = geminiService.checkPostContent(request.getContent());
+            post.setCheckedAt(Instant.now());
+            post.setAiStatus(aiResult);
+
+            // Critical: Reset approver because content is brand new
+            post.setApprovedBy(null);
+
+            if ("SAFE".equals(aiResult)) {
+                post.setStatus("APPROVED");
+            } else {
+                // If TOXIC or error occurs, move to PENDING to hide from newsfeed
+                post.setStatus("PENDING");
+                post.setAiReason("Nội dung đã được thay đổi và cần kiểm duyệt lại");
+            }
+        }
+
+        return postRepository.save(post);
+    }
+
+    @Override
+    public List<Post> getHomepagePostsByStatus(String status) {
+        return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(status);
     }
 }
