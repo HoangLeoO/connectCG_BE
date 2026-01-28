@@ -1,5 +1,5 @@
 # --- Giai đoạn 1: Build ứng dụng ---
-FROM eclipse-temurin:17-jdk-alpine AS builder
+FROM eclipse-temurin:17-jdk-jammy AS builder
 
 WORKDIR /app
 
@@ -8,6 +8,9 @@ COPY gradlew .
 COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
+
+# Chuyển về Gradle 8.7 bên trong Docker để build ổn định (không ảnh hưởng file gốc)
+RUN sed -i 's/gradle-9.2.1-bin.zip/gradle-8.7-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
 
 # Cấp quyền thực thi cho gradlew
 RUN chmod +x gradlew
@@ -19,7 +22,7 @@ COPY src src
 RUN ./gradlew clean bootJar -x test
 
 # --- Giai đoạn 2: Chạy ứng dụng ---
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:17-jre-jammy
 
 WORKDIR /app
 
