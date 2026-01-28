@@ -10,6 +10,7 @@ import org.example.connectcg_be.security.JwtTokenProvider;
 import org.example.connectcg_be.security.UserPrincipal;
 import org.hibernate.annotations.Comment;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -26,6 +27,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
     private UserRepository userRepository;
     @Autowired
     private UserProfileRepository userProfileRepository;
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -48,7 +51,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         String token = tokenProvider.generateToken(userPrincipal);
         boolean hasProfile = userProfileRepository.existsByUserId(user.getId());
         // Redirect về Frontend kèm Token
-        String targetUrl = "http://localhost:5173/oauth2/redirect?token=" + token + "&hasProfile=" + hasProfile;
+        String targetUrl = frontendUrl +"/oauth2/redirect?token=" + token + "&hasProfile=" + hasProfile;
         getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }
