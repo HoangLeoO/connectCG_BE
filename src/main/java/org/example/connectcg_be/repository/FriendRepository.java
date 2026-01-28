@@ -6,6 +6,7 @@ import org.example.connectcg_be.entity.FriendId;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -41,4 +42,8 @@ public interface FriendRepository extends JpaRepository<Friend, FriendId> {
     boolean existsByUserIdAndFriendId(Integer userId, Integer friendId);
 
     Integer countByUserId(Integer userId);
+
+    @Modifying
+    @Query("DELETE FROM Friend f WHERE (f.user.id = :userId AND f.friend.id = :friendId) OR (f.user.id = :friendId AND f.friend.id = :userId)")
+    void removeFriendship(@Param("userId") Integer userId, @Param("friendId") Integer friendId);
 }

@@ -2,9 +2,11 @@ package org.example.connectcg_be.service.impl;
 
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.FriendRequestDTO;
+import org.example.connectcg_be.dto.TungNotificationDTO;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.FriendRequestService;
+import org.example.connectcg_be.service.NotificationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
     private final UserAvatarRepository userAvatarRepository;
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService; // <--- Thêm dòng này
 
     /**
      * Lấy danh sách các lời mời kết bạn đang ở trạng thái PENDING của người dùng hiện tại.
@@ -98,6 +101,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             f1.setId(fi1);
             f1.setUser(receiver);
             f1.setFriend(sender);
+            f1.setCreatedAt(Instant.now());
             friendRepository.save(f1);
 
             // Bản ghi: Người gửi kết bạn với người nhận
@@ -108,8 +112,18 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             f2.setId(fi2);
             f2.setUser(sender);
             f2.setFriend(receiver);
+            f2.setCreatedAt(Instant.now());
             friendRepository.save(f2);
         }
+        // [MỚI] Gửi thông báo cho người gửi lời mời (Sender)
+        // A gửi cho B -> B chấp nhận -> A nhận thông báo
+        TungNotificationDTO notification = new TungNotificationDTO();
+        notification.setContent(request.getReceiver().getUsername() + " đã đồng ý lời mời kết bạn.");
+        notification.setType("FRIEND_ACCEPT");
+        notification.setTargetType("USER");
+        notification.setTargetId(request.getReceiver().getId()); // Click vào sẽ ra profile của người vừa chấp nhận
+
+        notificationService.sendNotification(notification, request.getSender());
     }
 
     /**
@@ -171,5 +185,14 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         request.setCreatedAt(Instant.now());
 
         friendRequestRepository.save(request);
+
+        // [MỚI] Gửi thông báo cho người nhận (Receiver)
+        TungNotificationDTO notification = new TungNotificationDTO();
+        notification.setContent(sender.getUsername() + " đã gửi cho bạn lời mời kết bạn.");
+        notification.setType("FRIEND_REQUEST");
+        notification.setTargetType("FRIEND_REQUEST");
+        notification.setTargetId(request.getId()); // Click vào sẽ ra xem chi tiết lời mời
+
+        notificationService.sendNotification(notification, receiver);
     }
 }
