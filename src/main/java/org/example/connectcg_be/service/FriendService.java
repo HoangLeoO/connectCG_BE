@@ -6,4 +6,6 @@ import org.springframework.data.domain.Pageable;
 
 public interface FriendService {
     Page<FriendDTO> getFriends(Integer userId, String name, String gender, Integer cityId, Pageable pageable);
+
+    void unfriend(Integer userId, Integer friendId);
 }

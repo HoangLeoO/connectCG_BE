@@ -44,4 +44,13 @@ public class FriendRestController {
         return ResponseEntity.ok(friendService.getFriends(userPrincipal.getId(), name, gender, cityId, pageable));
     }
 
+    @DeleteMapping("/{friendId}")
+    public ResponseEntity<Void> unfriend(
+            Authentication authentication,
+            @PathVariable Integer friendId) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        friendService.unfriend(userPrincipal.getId(), friendId);
+        return ResponseEntity.noContent().build();
+    }
+
 }

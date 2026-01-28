@@ -20,4 +20,13 @@ public class FriendServiceImpl implements FriendService {
     public Page<FriendDTO> getFriends(Integer userId, String name, String gender, Integer cityId, Pageable pageable) {
         return friendRepository.searchFriends(userId, name, gender, cityId, pageable);
     }
+
+    @Override
+    @Transactional
+    public void unfriend(Integer userId, Integer friendId) {
+        if (!friendRepository.existsByUserIdAndFriendId(userId, friendId)) {
+            throw new RuntimeException("You are not friends with this user");
+        }
+        friendRepository.removeFriendship(userId, friendId);
+    }
 }

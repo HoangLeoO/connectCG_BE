@@ -101,6 +101,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             f1.setId(fi1);
             f1.setUser(receiver);
             f1.setFriend(sender);
+            f1.setCreatedAt(Instant.now());
             friendRepository.save(f1);
 
             // Bản ghi: Người gửi kết bạn với người nhận
@@ -111,6 +112,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             f2.setId(fi2);
             f2.setUser(sender);
             f2.setFriend(receiver);
+            f2.setCreatedAt(Instant.now());
             friendRepository.save(f2);
         }
         // [MỚI] Gửi thông báo cho người gửi lời mời (Sender)
