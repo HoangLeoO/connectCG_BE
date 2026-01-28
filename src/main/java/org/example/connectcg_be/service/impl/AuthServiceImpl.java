@@ -1,9 +1,11 @@
 package org.example.connectcg_be.service.impl;
 
 import org.example.connectcg_be.dto.CreatProfileRequest;
+import org.example.connectcg_be.dto.JwtResponse;
 import org.example.connectcg_be.dto.RegisterRequest;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
+import org.example.connectcg_be.security.JwtTokenProvider;
 import org.example.connectcg_be.service.AuthService;
 import org.example.connectcg_be.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.UUID;
 
 @Service
@@ -232,4 +235,8 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         verificationTokenRepository.delete(verificationToken);
     }
+
+
+
+
 }

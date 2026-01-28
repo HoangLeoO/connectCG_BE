@@ -31,6 +31,7 @@ public class ReportServiceImpl implements ReportService {
         this.notificationService = notificationService;
     }
 
+
     @Override
     public List<ReportResponse> getAllReports() {
         return reportRepository.findAll().stream().map(this::mapToDto).toList();
@@ -70,6 +71,7 @@ public class ReportServiceImpl implements ReportService {
         }
         return dto;
     }
+
 
     @Override
     public Report getReportById(Integer id) {
