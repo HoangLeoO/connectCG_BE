@@ -8,6 +8,7 @@ import org.example.connectcg_be.service.UserProfileService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,6 +28,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserGalleryRepository userGalleryRepository;
     private final UserHobbyRepository userHobbyRepository;
     private final PostRepository postRepository;
+    private final CityRepository cityRepository;
 
     @Override
     public UserProfileDTO getUserProfile(Integer targetUserId, Integer currentUserId) {
@@ -158,5 +160,31 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .icon(hobby.getIcon())
                 .category(hobby.getCategory())
                 .build();
+    }
+
+    // Implement hàm
+    @Override
+    @Transactional
+    public UserProfileDTO updateProfileInfo(Integer userId, UpdateProfileRequest request) {
+        UserProfile profile = userProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new RuntimeException("Profile not found"));
+        if (request.getFullName() != null) profile.setFullName(request.getFullName());
+        if (request.getBio() != null) profile.setBio(request.getBio());
+        if (request.getOccupation() != null) profile.setOccupation(request.getOccupation());
+        if (request.getMaritalStatus() != null) profile.setMaritalStatus(request.getMaritalStatus());
+        if (request.getLookingFor() != null) profile.setLookingFor(request.getLookingFor());
+        if (request.getGender() != null) profile.setGender(request.getGender());
+        if (request.getDateOfBirth() != null) profile.setDateOfBirth(request.getDateOfBirth());
+
+        // Nếu có update city
+        if (request.getCityId() != null) {
+            City city = cityRepository.findById(request.getCityId())
+                    .orElse(null); // Hoặc handle error nếu muốn
+            profile.setCity(city);
+        }
+
+        profile.setUpdatedAt(Instant.now());
+        userProfileRepository.save(profile);
+        return getUserProfile(userId, userId); // Trả về DTO mới nhất
     }
 }

@@ -1,6 +1,7 @@
 package org.example.connectcg_be.service;
 
 import org.example.connectcg_be.dto.MemberSearchResponse;
+import org.example.connectcg_be.dto.UpdateProfileRequest;
 import org.example.connectcg_be.dto.UserProfileDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,4 +18,6 @@ public interface UserProfileService {
             String lookingFor,
             Pageable pageable
     );
+
+    UserProfileDTO updateProfileInfo(Integer userId, UpdateProfileRequest request);
 }
