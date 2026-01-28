@@ -12,7 +12,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "dismissed_suggestions", schema = "connectcg_be")
+@Table(name = "dismissed_suggestions")
 public class DismissedSuggestion {
     @EmbeddedId
     private DismissedSuggestionId id;

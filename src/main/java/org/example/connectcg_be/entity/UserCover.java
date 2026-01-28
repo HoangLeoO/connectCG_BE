@@ -17,7 +17,7 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "user_covers", schema = "connectcg_be")
+@Table(name = "user_covers")
 public class UserCover {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

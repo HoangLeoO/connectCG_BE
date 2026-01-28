@@ -15,7 +15,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "chat_room_members", schema = "connectcg_be")
+@Table(name = "chat_room_members")
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatRoomMember {

@@ -1,5 +1,6 @@
 package org.example.connectcg_be.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -18,7 +19,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "posts", schema = "connectcg_be")
+@JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
+@Table(name = "posts")
 public class Post {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -72,5 +74,18 @@ public class Post {
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    /* ===== AI MODERATION ===== */
+
+    @Size(max = 20)
+    @ColumnDefault("'NOT_CHECKED'")
+    @Column(name = "ai_status", length = 20)
+    private String aiStatus;
+
+    @Column(name = "ai_reason", columnDefinition = "TEXT")
+    private String aiReason;
+
+    @Column(name = "checked_at")
+    private Instant checkedAt;
 
 }

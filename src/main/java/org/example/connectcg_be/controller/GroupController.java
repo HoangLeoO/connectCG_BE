@@ -40,7 +40,7 @@ public class GroupController {
     }
 
     @GetMapping("/{id}/posts")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or @groupSecurity.isPublicGroup(#id)")
     public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id) {
         return postService.getApprovedPosts(id);
     }

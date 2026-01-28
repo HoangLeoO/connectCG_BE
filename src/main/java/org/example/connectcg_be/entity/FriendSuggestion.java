@@ -15,7 +15,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "friend_suggestions", schema = "connectcg_be")
+@Table(name = "friend_suggestions")
 public class FriendSuggestion {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

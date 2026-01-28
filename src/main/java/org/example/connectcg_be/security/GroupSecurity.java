@@ -60,6 +60,12 @@ public class GroupSecurity {
         return member.isPresent() && "ACCEPTED".equals(member.get().getStatus());
     }
 
+    public boolean isPublicGroup(Integer groupId) {
+        return groupRepository.findById(groupId)
+                .map(g -> "PUBLIC".equals(g.getPrivacy()))
+                .orElse(false);
+    }
+
     private UserPrincipal getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {

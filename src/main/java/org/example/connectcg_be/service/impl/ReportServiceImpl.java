@@ -24,6 +24,7 @@ public class ReportServiceImpl implements ReportService {
     private ReportRepository reportRepository;
 
     @Autowired
+    private org.example.connectcg_be.repository.PostRepository postRepository;
     private UserRepository userRepository; // 1. Cần thêm cái này
 
     public ReportServiceImpl(NotificationService notificationService) {
@@ -48,6 +49,16 @@ public class ReportServiceImpl implements ReportService {
         dto.setTargetId(report.getTargetId());
         dto.setReason(report.getReason());
         dto.setStatus(report.getStatus());
+        if ("GROUP".equals(report.getTargetType())) {
+            dto.setGroupId(report.getTargetId());
+        } else if ("POST".equals(report.getTargetType())) {
+            postRepository.findById(report.getTargetId()).ifPresent(post -> {
+                if (post.getGroup() != null) {
+                    dto.setGroupId(post.getGroup().getId());
+                }
+            });
+        }
+
         dto.setCreatedAt(report.getCreatedAt());
 
         if (report.getReporter() != null) {
@@ -59,7 +70,6 @@ public class ReportServiceImpl implements ReportService {
         }
         return dto;
     }
-
 
     @Override
     public Report getReportById(Integer id) {

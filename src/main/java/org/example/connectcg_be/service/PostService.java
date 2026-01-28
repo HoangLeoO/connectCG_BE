@@ -11,4 +11,7 @@ public interface PostService {
     void approvePost(Integer postId, Integer adminId);
 
     void rejectPost(Integer postId, Integer adminId);
+
+    org.example.connectcg_be.entity.Post createPost(org.example.connectcg_be.dto.CreatePostRequest request,
+            boolean skipAiCheck, Integer userId);
 }

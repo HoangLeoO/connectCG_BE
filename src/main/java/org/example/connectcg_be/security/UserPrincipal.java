@@ -27,8 +27,8 @@ public class UserPrincipal implements UserDetails {
     private Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(Integer id, String username, String email, String password, boolean isEnabled,
-            boolean isLocked, boolean isDeleted,
-            Collection<? extends GrantedAuthority> authorities) {
+                         boolean isLocked, boolean isDeleted,
+                         Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.email = email;

@@ -14,7 +14,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "group_members", schema = "connectcg_be")
+@Table(name = "group_members")
 public class GroupMember {
     @EmbeddedId
     private GroupMemberId id;
