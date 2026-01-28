@@ -37,7 +37,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             // Register new user
             user = new User();
             user.setEmail(email);
-
             // Generate username from email or ID
             if (email.contains("@")) {
                 user.setUsername(email.split("@")[0]);
