@@ -1,0 +1,13 @@
+.gradle
+.idea
+.vscode
+build
+out
+bin
+
+test
+tmp
+.git
+.gitignore
+Dockerfile
+README.md
