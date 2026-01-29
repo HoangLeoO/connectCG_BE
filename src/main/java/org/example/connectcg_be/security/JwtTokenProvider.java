@@ -16,7 +16,7 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     // Lấy secret key từ application.properties
-    @Value("${app.jwtSecret:MacDinhLaMotChuoiBiMatRatDaiCanPhaiThayDoiTrongProduction}")
+    @Value("${app.jwtSecret}")
     private String jwtSecret;
 
     @Value("${app.jwtExpirationInMs:86400000}") // Mặc định 1 ngày
