@@ -29,7 +29,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserGalleryRepository userGalleryRepository;
     private final UserHobbyRepository userHobbyRepository;
     private final PostRepository postRepository;
-    private final CityRepository cityRepository;
+
 
     @Override
     public UserProfileDTO getUserProfile(Integer targetUserId, Integer currentUserId) {
@@ -55,8 +55,9 @@ public class UserProfileServiceImpl implements UserProfileService {
             dto.setBio(profile.getBio());
             dto.setOccupation(profile.getOccupation());
 
-            if (profile.getCity() != null) {
-                dto.setCity(mapCityToDTO(profile.getCity()));
+            if (profile.getCityCode() != null) {
+                dto.setCityCode(profile.getCityCode());
+                dto.setCityName(profile.getCityName());
             }
 
             if (isFriendOrSelf) {
@@ -86,13 +87,13 @@ public class UserProfileServiceImpl implements UserProfileService {
             Integer currentUserId,
             String keyword,
             String gender,
-            Integer cityId,
+            String cityCode,
             String maritalStatus,
             String lookingFor,
             Pageable pageable
     ) {
         Page<MemberSearchResponse> page = userProfileRepository.searchMembers(
-                currentUserId, keyword, gender, cityId, maritalStatus, lookingFor, pageable
+                currentUserId, keyword, gender, cityCode, maritalStatus, lookingFor, pageable
         );
 
         page.getContent().forEach(dto -> {
@@ -135,14 +136,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .collect(Collectors.toList());
     }
 
-    private CityDTO mapCityToDTO(City city) {
-        return CityDTO.builder()
-                .id(city.getId())
-                .code(city.getCode())
-                .name(city.getName())
-                .region(city.getRegion())
-                .build();
-    }
+
 
     private MediaDTO mapMediaToDTO(Media media) {
         return MediaDTO.builder()
@@ -180,10 +174,11 @@ public class UserProfileServiceImpl implements UserProfileService {
         if (request.getDateOfBirth() != null) profile.setDateOfBirth(request.getDateOfBirth());
 
         // Nếu có update city
-        if (request.getCityId() != null) {
-            City city = cityRepository.findById(request.getCityId())
-                    .orElse(null); // Hoặc handle error nếu muốn
-            profile.setCity(city);
+        if (request.getCityCode() != null) {
+             profile.setCityCode(request.getCityCode());
+        }
+        if (request.getCityName() != null) {
+            profile.setCityName(request.getCityName());
         }
 
         profile.setUpdatedAt(Instant.now());

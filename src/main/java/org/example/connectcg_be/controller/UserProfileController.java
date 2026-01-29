@@ -62,7 +62,7 @@ public class UserProfileController {
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String gender,
-            @RequestParam(required = false) Integer cityId,
+            @RequestParam(required = false) String cityCode,
             @RequestParam(required = false) String maritalStatus,
             @RequestParam(required = false) String lookingFor,
             @RequestParam(defaultValue = "0") int page,
@@ -74,7 +74,7 @@ public class UserProfileController {
 
         Pageable pageable = PageRequest.of(page, size);
         Page<MemberSearchResponse> result = userProfileService.searchMembers(
-                currentUserId, keyword, gender, cityId, maritalStatus, lookingFor, pageable);
+                currentUserId, keyword, gender, cityCode, maritalStatus, lookingFor, pageable);
         return ResponseEntity.ok(result);
     }
 

@@ -19,8 +19,8 @@ public class FriendServiceImpl implements FriendService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<FriendDTO> getFriends(Integer userId, Integer viewerId, String name, String gender, Integer cityId, Pageable pageable) {
-        Page<FriendDTO> friends = friendRepository.searchFriends(userId, name, gender, cityId, pageable);
+    public Page<FriendDTO> getFriends(Integer userId, Integer viewerId, String name, String gender, String cityCode, Pageable pageable) {
+        Page<FriendDTO> friends = friendRepository.searchFriends(userId, name, gender, cityCode, pageable);
         
         // Populate relationship status relative to viewerId
         friends.forEach(friend -> {

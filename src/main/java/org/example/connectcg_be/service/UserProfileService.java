@@ -13,7 +13,7 @@ public interface UserProfileService {
             Integer currentUserId,
             String keyword,
             String gender,
-            Integer cityId,
+            String cityCode,
             String maritalStatus,
             String lookingFor,
             Pageable pageable

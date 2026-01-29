@@ -128,11 +128,9 @@ public class UserServiceImpl implements UserService {
             dto.setLookingFor(profile.getLookingFor());
 
             // City info
-            if (profile.getCity() != null) {
-                dto.setCity(org.example.connectcg_be.dto.CityDTO.builder()
-                        .id(profile.getCity().getId())
-                        .name(profile.getCity().getName())
-                        .build());
+            if (profile.getCityCode() != null) {
+                dto.setCityCode(profile.getCityCode());
+                dto.setCityName(profile.getCityName());
             }
         }
 

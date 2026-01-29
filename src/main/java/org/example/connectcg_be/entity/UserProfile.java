@@ -28,10 +28,13 @@ public class UserProfile {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @OnDelete(action = OnDeleteAction.SET_NULL)
-    @JoinColumn(name = "city_id")
-    private City city;
+    @Size(max = 50)
+    @Column(name = "city_code", length = 50)
+    private String cityCode;
+
+    @Size(max = 100)
+    @Column(name = "city_name", length = 100)
+    private String cityName;
 
     @Size(max = 100)
     @Column(name = "full_name", length = 100)

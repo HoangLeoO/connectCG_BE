@@ -12,7 +12,8 @@ public class CreatProfileRequest {
     private String maritalStatus;
     private String purpose; // looking_for
     private String occupation;
-    private String cityId;
+    private String cityCode;
+    private String cityName;
     private List<Integer> hobbyIds; // [NEW] Danh sách ID sở thích
     private String avatarUrl;
     private String bio;

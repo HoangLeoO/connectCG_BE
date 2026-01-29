@@ -12,5 +12,6 @@ public class UpdateProfileRequest {
     private String lookingFor;
     private String gender;
     private LocalDate dateOfBirth;
-    private Integer cityId; // Lấy ID thành phố để update
+    private String cityCode;
+    private String cityName;
 }

@@ -19,25 +19,24 @@ public interface FriendRepository extends JpaRepository<Friend, FriendId> {
             "p.fullName, " +
             "f.friend.username, " +
             "p.gender, " +
-            "c.name, " +
+            "p.cityName, " +
             "m.url, " +
             "p.dateOfBirth, " +
             "p.occupation, " +
             "CAST('NONE' AS string)) " +
             "FROM Friend f " +
             "LEFT JOIN UserProfile p ON p.user = f.friend " +
-            "LEFT JOIN p.city c " +
             "LEFT JOIN UserAvatar ua ON ua.user = f.friend AND ua.isCurrent = true " +
             "LEFT JOIN ua.media m " +
             "WHERE f.user.id = :userId " +
             "AND (:name IS NULL OR p.fullName LIKE %:name% OR f.friend.username LIKE %:name%) " +
             "AND (:gender IS NULL OR p.gender = :gender) " +
-            "AND (:cityId IS NULL OR c.id = :cityId)")
+            "AND (:cityCode IS NULL OR p.cityCode = :cityCode)")
     Page<FriendDTO> searchFriends(
             @Param("userId") Integer userId,
             @Param("name") String name,
             @Param("gender") String gender,
-            @Param("cityId") Integer cityId,
+            @Param("cityCode") String cityCode,
             Pageable pageable);
 
     boolean existsByUserIdAndFriendId(Integer userId, Integer friendId);

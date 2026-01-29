@@ -29,7 +29,8 @@ public class UserProfileDTO {
     private String lookingFor;
 
     // Location
-    private CityDTO city;
+    private String cityCode;
+    private String cityName;
 
     // Media
     private String currentAvatarUrl;
