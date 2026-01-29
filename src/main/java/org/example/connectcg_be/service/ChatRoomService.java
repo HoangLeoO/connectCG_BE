@@ -1,21 +1,22 @@
 package org.example.connectcg_be.service;
 
-import org.example.connectcg_be.entity.ChatRoom;
+import org.example.connectcg_be.dto.ChatRoomDTO;
 import org.example.connectcg_be.entity.User;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface ChatRoomService {
-    ChatRoom getOrCreateDirectChat(User user1, User user2);
+    ChatRoomDTO getOrCreateDirectChat(User user1, User user2);
 
-    ChatRoom createGroupChat(User creator, String name, List<User> members);
+    ChatRoomDTO createGroupChat(User creator, String name, List<User> members);
 
-    Optional<ChatRoom> findByFirebaseKey(String key);
+    List<ChatRoomDTO> getUserChatRooms(Integer userId);
 
-    List<ChatRoom> getUserChatRooms(Integer userId);
+    ChatRoomDTO renameRoom(Long roomId, String newName, User currentUser);
 
-    ChatRoom renameRoom(Long roomId, String newName, User currentUser);
+    ChatRoomDTO updateAvatar(Long roomId, String avatarUrl, User currentUser);
 
-    ChatRoom updateAvatar(Long roomId, String avatarUrl, User currentUser);
+    ChatRoomDTO inviteMembers(Long roomId, List<Integer> invitedUserIds, User currentUser);
+
+    ChatRoomDTO convertToDTO(org.example.connectcg_be.entity.ChatRoom room, Integer currentUserId);
 }

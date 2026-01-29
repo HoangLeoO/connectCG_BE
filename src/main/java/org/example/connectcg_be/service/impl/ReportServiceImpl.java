@@ -18,14 +18,14 @@ import java.util.List;
 @Service
 public class ReportServiceImpl implements ReportService {
     private final NotificationService notificationService;
-
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private ReportRepository reportRepository;
 
     @Autowired
     private org.example.connectcg_be.repository.PostRepository postRepository;
-    private UserRepository userRepository; // 1. Cần thêm cái này
 
     public ReportServiceImpl(NotificationService notificationService) {
         this.notificationService = notificationService;

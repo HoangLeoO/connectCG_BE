@@ -1,17 +1,10 @@
 package org.example.connectcg_be.controller;
 
-import org.example.connectcg_be.dto.ChatMemberDTO;
 import org.example.connectcg_be.dto.ChatRoomDTO;
-import org.example.connectcg_be.entity.ChatRoom;
 import org.example.connectcg_be.entity.User;
 import org.example.connectcg_be.repository.UserRepository;
-import org.example.connectcg_be.repository.UserProfileRepository;
-import org.example.connectcg_be.repository.UserAvatarRepository;
-import org.example.connectcg_be.repository.ChatRoomMemberRepository;
 import org.example.connectcg_be.security.UserPrincipal;
 import org.example.connectcg_be.service.ChatRoomService;
-import org.example.connectcg_be.entity.UserProfile;
-import org.example.connectcg_be.entity.UserAvatar;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -32,17 +25,8 @@ public class ChatController {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private ChatRoomMemberRepository chatRoomMemberRepository;
-
-    @Autowired
-    private UserProfileRepository userProfileRepository;
-
-    @Autowired
-    private UserAvatarRepository userAvatarRepository;
-
     @PostMapping("/direct/{targetUserId}")
-    public ResponseEntity<?> getOrCreateDirectChat(
+    public ResponseEntity<ChatRoomDTO> getOrCreateDirectChat(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer targetUserId) {
 
@@ -51,22 +35,17 @@ public class ChatController {
         User user2 = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("Target user not found"));
 
-        ChatRoom room = chatRoomService.getOrCreateDirectChat(user1, user2);
-        return ResponseEntity.ok(convertToDTO(room, currentUser.getId()));
+        return ResponseEntity.ok(chatRoomService.getOrCreateDirectChat(user1, user2));
     }
 
     @GetMapping("/my")
     public ResponseEntity<List<ChatRoomDTO>> getMyChatRooms(
             @AuthenticationPrincipal UserPrincipal currentUser) {
-        List<ChatRoom> rooms = chatRoomService.getUserChatRooms(currentUser.getId());
-        List<ChatRoomDTO> dtos = rooms.stream()
-                .map(room -> convertToDTO(room, currentUser.getId()))
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(dtos);
+        return ResponseEntity.ok(chatRoomService.getUserChatRooms(currentUser.getId()));
     }
 
     @PostMapping("/group")
-    public ResponseEntity<?> createGroupChat(
+    public ResponseEntity<ChatRoomDTO> createGroupChat(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestBody Map<String, Object> request) {
 
@@ -84,12 +63,11 @@ public class ChatController {
                         .orElseThrow(() -> new RuntimeException("Member not found: " + id)))
                 .collect(Collectors.toList());
 
-        ChatRoom room = chatRoomService.createGroupChat(creator, name, members);
-        return ResponseEntity.ok(convertToDTO(room, currentUser.getId()));
+        return ResponseEntity.ok(chatRoomService.createGroupChat(creator, name, members));
     }
 
     @PutMapping("/{roomId}/name")
-    public ResponseEntity<?> renameRoom(
+    public ResponseEntity<ChatRoomDTO> renameRoom(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Long roomId,
             @RequestBody String newName) {
@@ -99,12 +77,11 @@ public class ChatController {
 
         // Remove quotes if present from raw string body
         String cleanName = newName.replace("\"", "");
-        ChatRoom room = chatRoomService.renameRoom(roomId, cleanName, user);
-        return ResponseEntity.ok(convertToDTO(room, currentUser.getId()));
+        return ResponseEntity.ok(chatRoomService.renameRoom(roomId, cleanName, user));
     }
 
     @PutMapping("/{roomId}/avatar")
-    public ResponseEntity<?> updateAvatar(
+    public ResponseEntity<ChatRoomDTO> updateAvatar(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Long roomId,
             @RequestBody Map<String, String> payload) {
@@ -113,62 +90,28 @@ public class ChatController {
         User user = userRepository.findById(currentUser.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        ChatRoom room = chatRoomService.updateAvatar(roomId, url, user);
-        return ResponseEntity.ok(convertToDTO(room, currentUser.getId()));
+        return ResponseEntity.ok(chatRoomService.updateAvatar(roomId, url, user));
     }
 
-    private ChatRoomDTO convertToDTO(ChatRoom room, Integer currentUserId) {
-        String name = room.getName();
-        String avatarUrl = room.getAvatarUrl();
-        Integer otherParticipantId = null;
+    @PostMapping("/{roomId}/invite")
+    public ResponseEntity<ChatRoomDTO> inviteMembers(
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @PathVariable Long roomId,
+            @RequestBody Map<String, Object> payload) {
 
-        // Fetch all members to populate 'members' list and determine 1-1 info
-        List<org.example.connectcg_be.entity.ChatRoomMember> roomMembers = chatRoomMemberRepository
-                .findByChatRoom_Id(room.getId());
+        User inviter = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("Inviter not found"));
 
-        List<ChatMemberDTO> memberDTOs = roomMembers.stream().map(rm -> {
-            Integer uid = rm.getUser().getId();
-            String uName = rm.getUser().getUsername();
-            String fName = userProfileRepository.findByUserId(uid)
-                    .map(UserProfile::getFullName)
-                    .orElse(uName);
+        // Extract userIds from payload
+        Object userIdsObj = payload.get("userIds");
+        List<Integer> userIds = (userIdsObj instanceof List<?>)
+                ? ((List<?>) userIdsObj).stream().map(o -> (Integer) o).collect(Collectors.toList())
+                : List.of();
 
-            String aUrl = null;
-            UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(uid);
-            if (avatar != null && avatar.getMedia() != null) {
-                aUrl = avatar.getMedia().getUrl();
-            }
-
-            return ChatMemberDTO.builder()
-                    .id(uid)
-                    .fullName(fName)
-                    .avatarUrl(aUrl)
-                    .role(rm.getRole())
-                    .build();
-        }).collect(Collectors.toList());
-
-        if ("DIRECT".equals(room.getType())) {
-            // Find the other member specifically for the room header info
-            for (ChatMemberDTO m : memberDTOs) {
-                if (!m.getId().equals(currentUserId)) {
-                    otherParticipantId = m.getId();
-                    name = m.getFullName();
-                    avatarUrl = m.getAvatarUrl();
-                    break;
-                }
-            }
+        if (userIds.isEmpty()) {
+            throw new RuntimeException("No users to invite");
         }
 
-        return ChatRoomDTO.builder()
-                .id(room.getId())
-                .type(room.getType())
-                .name(name)
-                .avatarUrl(avatarUrl)
-                .firebaseRoomKey(room.getFirebaseRoomKey())
-                .otherParticipantId(otherParticipantId)
-                .members(memberDTOs)
-                .lastMessageAt(room.getLastMessageAt())
-                .createdAt(room.getCreatedAt())
-                .build();
+        return ResponseEntity.ok(chatRoomService.inviteMembers(roomId, userIds, inviter));
     }
 }

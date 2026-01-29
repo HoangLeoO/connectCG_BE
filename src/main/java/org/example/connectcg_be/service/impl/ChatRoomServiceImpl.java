@@ -1,8 +1,9 @@
 package org.example.connectcg_be.service.impl;
 
+import org.example.connectcg_be.dto.ChatMemberDTO;
+import org.example.connectcg_be.dto.ChatRoomDTO;
 import org.example.connectcg_be.entity.*;
-import org.example.connectcg_be.repository.ChatRoomMemberRepository;
-import org.example.connectcg_be.repository.ChatRoomRepository;
+import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.ChatRoomService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class ChatRoomServiceImpl implements ChatRoomService {
@@ -22,9 +24,18 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     @Autowired
     private ChatRoomMemberRepository chatRoomMemberRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private UserProfileRepository userProfileRepository;
+
+    @Autowired
+    private UserAvatarRepository userAvatarRepository;
+
     @Override
     @Transactional
-    public ChatRoom getOrCreateDirectChat(User user1, User user2) {
+    public ChatRoomDTO getOrCreateDirectChat(User user1, User user2) {
         // Tìm phòng chat chung giữa 2 người
         List<ChatRoomMember> memberships1 = chatRoomMemberRepository.findByUser_Id(user1.getId());
         for (ChatRoomMember m1 : memberships1) {
@@ -33,7 +44,7 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 Optional<ChatRoomMember> m2 = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(),
                         user2.getId());
                 if (m2.isPresent()) {
-                    return room;
+                    return convertToDTO(room, user1.getId());
                 }
             }
         }
@@ -51,12 +62,12 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         addMember(room, user1, "ADMIN");
         addMember(room, user2, "MEMBER");
 
-        return room;
+        return convertToDTO(room, user1.getId());
     }
 
     @Override
     @Transactional
-    public ChatRoom createGroupChat(User creator, String name, List<User> members) {
+    public ChatRoomDTO createGroupChat(User creator, String name, List<User> members) {
         ChatRoom room = new ChatRoom();
         room.setType("GROUP");
         room.setName(name);
@@ -73,24 +84,23 @@ public class ChatRoomServiceImpl implements ChatRoomService {
             }
         }
 
-        return room;
+        return convertToDTO(room, creator.getId());
     }
 
     @Override
-    public Optional<ChatRoom> findByFirebaseKey(String key) {
-        return chatRoomRepository.findByFirebaseRoomKey(key);
-    }
-
-    @Override
-    public List<ChatRoom> getUserChatRooms(Integer userId) {
-        return chatRoomMemberRepository.findByUser_Id(userId).stream()
+    public List<ChatRoomDTO> getUserChatRooms(Integer userId) {
+        List<ChatRoom> rooms = chatRoomMemberRepository.findByUser_Id(userId).stream()
                 .map(ChatRoomMember::getChatRoom)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
+
+        return rooms.stream()
+                .map(room -> convertToDTO(room, userId))
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
-    public ChatRoom renameRoom(Long roomId, String newName, User currentUser) {
+    public ChatRoomDTO renameRoom(Long roomId, String newName, User currentUser) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
@@ -102,12 +112,13 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         }
 
         room.setName(newName);
-        return chatRoomRepository.save(room);
+        room = chatRoomRepository.save(room);
+        return convertToDTO(room, currentUser.getId());
     }
 
     @Override
-    @Transactional // Implementation of ChatRoomService.updateAvatar
-    public ChatRoom updateAvatar(Long roomId, String avatarUrl, User currentUser) {
+    @Transactional
+    public ChatRoomDTO updateAvatar(Long roomId, String avatarUrl, User currentUser) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
 
@@ -119,7 +130,100 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         }
 
         room.setAvatarUrl(avatarUrl);
-        return chatRoomRepository.save(room);
+        room = chatRoomRepository.save(room);
+        return convertToDTO(room, currentUser.getId());
+    }
+
+    @Override
+    @Transactional
+    public ChatRoomDTO inviteMembers(Long roomId, List<Integer> invitedUserIds, User currentUser) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        if (!"GROUP".equals(room.getType())) {
+            throw new RuntimeException("Cannot invite users to direct chat");
+        }
+
+        // Check current user is member
+        chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        // Get current member IDs to check duplicates
+        List<Integer> currentMemberIds = chatRoomMemberRepository.findByChatRoom_Id(roomId)
+                .stream()
+                .map(m -> m.getUser().getId())
+                .collect(Collectors.toList());
+
+        // Process each invited user
+        for (Integer invitedUserId : invitedUserIds) {
+            // Skip if already a member
+            if (currentMemberIds.contains(invitedUserId)) {
+                continue;
+            }
+
+            User invitedUser = userRepository.findById(invitedUserId)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + invitedUserId));
+
+            // Add member
+            addMember(room, invitedUser, "MEMBER");
+        }
+
+        return convertToDTO(room, currentUser.getId());
+    }
+
+    @Override
+    public ChatRoomDTO convertToDTO(ChatRoom room, Integer currentUserId) {
+        String name = room.getName();
+        String avatarUrl = room.getAvatarUrl();
+        Integer otherParticipantId = null;
+
+        // Fetch all members to populate 'members' list and determine 1-1 info
+        List<ChatRoomMember> roomMembers = chatRoomMemberRepository.findByChatRoom_Id(room.getId());
+
+        List<ChatMemberDTO> memberDTOs = roomMembers.stream().map(rm -> {
+            Integer uid = rm.getUser().getId();
+            String uName = rm.getUser().getUsername();
+            String fName = userProfileRepository.findByUserId(uid)
+                    .map(UserProfile::getFullName)
+                    .orElse(uName);
+
+            String aUrl = null;
+            UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(uid);
+            if (avatar != null && avatar.getMedia() != null) {
+                aUrl = avatar.getMedia().getUrl();
+            }
+
+            return ChatMemberDTO.builder()
+                    .id(uid)
+                    .fullName(fName)
+                    .avatarUrl(aUrl)
+                    .role(rm.getRole())
+                    .build();
+        }).collect(Collectors.toList());
+
+        if ("DIRECT".equals(room.getType())) {
+            // Find the other member specifically for the room header info
+            for (ChatMemberDTO m : memberDTOs) {
+                if (!m.getId().equals(currentUserId)) {
+                    otherParticipantId = m.getId();
+                    name = m.getFullName();
+                    avatarUrl = m.getAvatarUrl();
+                    break;
+                }
+            }
+        }
+
+        return ChatRoomDTO.builder()
+                .id(room.getId())
+                .type(room.getType())
+                .name(name)
+                .avatarUrl(avatarUrl)
+                .firebaseRoomKey(room.getFirebaseRoomKey())
+                .otherParticipantId(otherParticipantId)
+                .members(memberDTOs)
+                .lastMessageAt(room.getLastMessageAt())
+                .createdAt(room.getCreatedAt())
+                .build();
     }
 
     private void addMember(ChatRoom room, User user, String role) {
