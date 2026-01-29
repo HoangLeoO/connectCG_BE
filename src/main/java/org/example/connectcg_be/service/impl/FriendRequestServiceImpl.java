@@ -23,7 +23,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
     private final UserAvatarRepository userAvatarRepository;
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
-    private final NotificationService notificationService; // <--- Thêm dòng này
+    private final NotificationRepository notificationRepository;
 
     /**
      * Lấy danh sách các lời mời kết bạn đang ở trạng thái PENDING của người dùng hiện tại.
@@ -115,15 +115,19 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             f2.setCreatedAt(Instant.now());
             friendRepository.save(f2);
         }
-        // [MỚI] Gửi thông báo cho người gửi lời mời (Sender)
-        // A gửi cho B -> B chấp nhận -> A nhận thông báo
-        TungNotificationDTO notification = new TungNotificationDTO();
-        notification.setContent(request.getReceiver().getUsername() + " đã đồng ý lời mời kết bạn.");
+        
+        // Tạo thông báo cho người gửi lời mời (Sender)
+        Notification notification = new Notification();
+        notification.setUser(request.getSender()); // Sender nhận thông báo
+        notification.setActor(request.getReceiver()); // Receiver là người hành động (accept)
         notification.setType("FRIEND_ACCEPT");
         notification.setTargetType("USER");
-        notification.setTargetId(request.getReceiver().getId()); // Click vào sẽ ra profile của người vừa chấp nhận
-
-        notificationService.sendNotification(notification, request.getSender());
+        notification.setTargetId(request.getReceiver().getId());
+        notification.setIsRead(false);
+        notification.setCreatedAt(Instant.now());
+        notification.setContent(request.getReceiver().getUsername() + " đã đồng ý lời mời kết bạn.");
+        
+        notificationRepository.save(notification);
     }
 
     /**
@@ -186,14 +190,18 @@ public class FriendRequestServiceImpl implements FriendRequestService {
 
         friendRequestRepository.save(request);
 
-        // [MỚI] Gửi thông báo cho người nhận (Receiver)
-        TungNotificationDTO notification = new TungNotificationDTO();
-        notification.setContent(sender.getUsername() + " đã gửi cho bạn lời mời kết bạn.");
+        // Tạo thông báo cho người nhận (Receiver)
+        Notification notification = new Notification();
+        notification.setUser(receiver); // Receiver nhận thông báo
+        notification.setActor(sender); // Sender là người hành động (gửi request)
         notification.setType("FRIEND_REQUEST");
         notification.setTargetType("FRIEND_REQUEST");
-        notification.setTargetId(request.getId()); // Click vào sẽ ra xem chi tiết lời mời
-
-        notificationService.sendNotification(notification, receiver);
+        notification.setTargetId(request.getId());
+        notification.setIsRead(false);
+        notification.setCreatedAt(Instant.now());
+        notification.setContent(sender.getUsername() + " đã gửi cho bạn lời mời kết bạn.");
+        
+        notificationRepository.save(notification);
     }
 
     @Override
