@@ -51,10 +51,10 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public User register(RegisterRequest request) {
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new RuntimeException("Error: Username is already taken!");
+            throw new RuntimeException("Username đã được sử dụng!");
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Error: Email is already in use!");
+            throw new RuntimeException("Email đã được sử dụng");
         }
         User user = new User();
         user.setUsername(request.getUsername());
@@ -72,7 +72,7 @@ public class AuthServiceImpl implements AuthService {
         VerificationToken verificationToken = new VerificationToken(token, savedUser);
         verificationTokenRepository.save(verificationToken);
 
-        String link = frontendUrl+"/verify-email?token=" + token;
+        String link = frontendUrl + "/verify-email?token=" + token;
         String htmlContent = """
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
                     <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
@@ -107,9 +107,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public UserProfile createProfile(CreatProfileRequest request, String username) {
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
         if (userProfileRepository.existsByUserId(user.getId())) {
-            throw new RuntimeException("User already has a profile!");
+            throw new RuntimeException("Người dùng đã có thông tin cá nhân!");
         }
         UserProfile profile = new UserProfile();
         profile.setUser(user);
@@ -179,7 +179,7 @@ public class AuthServiceImpl implements AuthService {
         String token = UUID.randomUUID().toString();
         PasswordResetToken myToken = new PasswordResetToken(token, user);
         tokenRepository.save(myToken);
-        String link = frontendUrl+"/reset-password?token=" + token;
+        String link = frontendUrl + "/reset-password?token=" + token;
         String htmlContent = """
                     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; padding: 20px;">
                         <div style="background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
@@ -237,8 +237,6 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         verificationTokenRepository.delete(verificationToken);
     }
-
-
 
 
 }
