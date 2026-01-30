@@ -24,4 +24,6 @@ public interface GroupRepository extends JpaRepository<Group, Integer> {
     List<Group> searchByKeyword(@Param("keyword") String keyword);
 
     java.util.Optional<Group> findByIdAndIsDeletedFalse(Integer id);
+
+
 }

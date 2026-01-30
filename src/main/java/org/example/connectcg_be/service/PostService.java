@@ -15,6 +15,10 @@ public interface PostService {
 
     List<GroupPostDTO> getApprovedPosts(Integer groupId);
 
+    List<GroupPostDTO> getNewsfeedPosts(Integer userId);
+
+    List<GroupPostDTO>getPostsByUserId(Integer userid);
+
     void approvePost(Integer postId, Integer adminId);
 
     void rejectPost(Integer postId, Integer adminId);
