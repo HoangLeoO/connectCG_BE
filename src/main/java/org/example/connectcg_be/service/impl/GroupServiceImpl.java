@@ -4,6 +4,7 @@ import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.CreateGroup;
 import org.example.connectcg_be.dto.GroupDTO;
 import org.example.connectcg_be.dto.TungGroupMemberDTO;
+import org.example.connectcg_be.dto.TungNotificationDTO;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.GroupMemberRepository;
 import org.example.connectcg_be.repository.GroupRepository;
@@ -38,14 +39,13 @@ public class GroupServiceImpl implements GroupService {
     @Autowired
     private org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
     @Autowired
-    private org.example.connectcg_be.repository.NotificationRepository notificationRepository;
-    @Autowired
     private NotificationService notificationService;
 
     @Override
     @Transactional
-    public List<GroupDTO> findAllGroups() {
-        return groupRepository.findAllByIsDeletedFalse().stream().map(this::mapToDTO).collect(Collectors.toList());
+    public org.springframework.data.domain.Page<GroupDTO> findAllGroups(
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findAll(pageable).map(this::mapToDTO);
     }
 
     private GroupDTO mapToDTO(Group group) {
@@ -142,30 +142,23 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    public List<GroupDTO> findMyGroups(Integer userId) {
-        return groupMemberRepository.findAllByIdUserIdAndStatus(userId, "ACCEPTED").stream()
-                .filter(member -> !member.getGroup().getIsDeleted())
-                .map(member -> {
-                    GroupDTO dto = mapToDTO(member.getGroup(), userId);
-                    dto.setCurrentUserStatus(member.getStatus());
-                    dto.setCurrentUserRole(member.getRole());
-                    return dto;
-                }).collect(Collectors.toList());
+    public org.springframework.data.domain.Page<GroupDTO> findMyGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findMyGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
     }
 
     @Override
     @Transactional
-    public List<GroupDTO> findDiscoverGroups(Integer userId) {
-        return groupRepository.findDiscoverGroups(userId).stream().map(group -> {
-            return mapToDTO(group, userId);
-        }).collect(Collectors.toList());
+    public org.springframework.data.domain.Page<GroupDTO> findDiscoverGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findDiscoverGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
     }
 
     @Override
-    public List<GroupDTO> searchGroups(String query, Integer userId) {
-        return groupRepository.searchByKeyword(query).stream()
-                .map(group -> mapToDTO(group, userId))
-                .collect(Collectors.toList());
+    @Transactional
+    public org.springframework.data.domain.Page<GroupDTO> searchGroups(String query, Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.searchByKeyword(query, pageable).map(g -> this.mapToDTO(g, userId));
     }
 
     @Override
@@ -211,7 +204,7 @@ public class GroupServiceImpl implements GroupService {
             id.setUserId(requesterId);
             GroupMember requester = groupMemberRepository.findById(id).orElse(null);
             if (requester == null || !"ACCEPTED".equals(requester.getStatus())) {
-                throw new RuntimeException("Cannot view members of a private group unless you are a member");
+                throw new RuntimeException("Bạn không thể xem vì đây là nhóm riêng tư");
             }
         }
 
@@ -268,13 +261,12 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.save(group);
         User owner = group.getOwner();
         if (owner != null) {
-            org.example.connectcg_be.dto.TungNotificationDTO noti = new org.example.connectcg_be.dto.TungNotificationDTO();
+            TungNotificationDTO noti = new TungNotificationDTO();
             noti.setContent("Nhóm '" + group.getName() + "' của bạn đã bị xóa do vi phạm quy tắc cộng đồng.");
             noti.setType("GROUP_DELETED");
             noti.setTargetType("GROUP");
             noti.setTargetId(groupId);
 
-            // Gọi hàm vừa viết để lưu DB + Gửi WebSocket
             notificationService.sendNotification(noti, owner);
         }
     }
@@ -317,6 +309,19 @@ public class GroupServiceImpl implements GroupService {
             member.setInvitedById(actorId);
 
             groupMemberRepository.save(member);
+
+            // Notify the invited user
+            User actor = userService.findByIdUser(actorId);
+            String actorFullName = userProfileRepository.findByUserId(actorId)
+                    .map(UserProfile::getFullName)
+                    .orElse(actor.getUsername());
+
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent(actorFullName + " đã mời bạn tham gia nhóm " + group.getName());
+            dto.setType("GROUP_INVITE");
+            dto.setTargetType("GROUP");
+            dto.setTargetId(groupId);
+            notificationService.sendNotification(dto, user, actor);
         }
     }
 
@@ -375,6 +380,22 @@ public class GroupServiceImpl implements GroupService {
         }
 
         groupMemberRepository.save(member);
+
+        // Notify the inviter that their invitation was accepted
+        if (member.getInvitedById() != null && "ACCEPTED".equals(member.getStatus())) {
+            User inviter = userService.findByIdUser(member.getInvitedById());
+            User actor = member.getUser();
+            String actorFullName = userProfileRepository.findByUserId(actor.getId())
+                    .map(UserProfile::getFullName)
+                    .orElse(actor.getUsername());
+
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent(actorFullName + " đã chấp nhận lời mời tham gia nhóm " + member.getGroup().getName());
+            dto.setType("GROUP_INVITE_ACCEPTED");
+            dto.setTargetType("GROUP");
+            dto.setTargetId(groupId);
+            notificationService.sendNotification(dto, inviter, actor);
+        }
     }
 
     @Override
@@ -390,7 +411,6 @@ public class GroupServiceImpl implements GroupService {
         if (!"PENDING".equals(member.getStatus())) {
             throw new RuntimeException("Lời mời không ở trạng thái PENDING");
         }
-
 
         groupMemberRepository.delete(member);
     }
@@ -438,10 +458,24 @@ public class GroupServiceImpl implements GroupService {
                         existing.setStatus("ACCEPTED");
                         existing.setJoinedAt(Instant.now());
                         groupMemberRepository.save(existing);
+
+                        // Notify the group owner
+                        User owner = group.getOwner();
+                        if (owner != null && !owner.getId().equals(userId)) {
+                            String actorFullName = userProfileRepository.findByUserId(userId)
+                                    .map(UserProfile::getFullName)
+                                    .orElse(user.getUsername());
+                            TungNotificationDTO dto = new TungNotificationDTO();
+                            dto.setContent(actorFullName + " đã tham gia vào nhóm " + group.getName());
+                            dto.setType("GROUP_MEMBER_JOINED");
+                            dto.setTargetType("GROUP");
+                            dto.setTargetId(groupId);
+                            notificationService.sendNotification(dto, owner, user);
+                        }
                         return;
                     }
                     throw new RuntimeException(
-                            "Lỗi");
+                            "Bạn đang có một lời mời gia nhập nhóm này. Vui lòng chấp nhận lời mời để tiếp tục.");
                 }
             }
         }
@@ -460,6 +494,25 @@ public class GroupServiceImpl implements GroupService {
         member.setJoinedAt(Instant.now());
 
         groupMemberRepository.save(member);
+
+        User owner = group.getOwner();
+        if (owner != null && !owner.getId().equals(userId)) {
+            String actorFullName = userProfileRepository.findByUserId(userId)
+                    .map(UserProfile::getFullName)
+                    .orElse(user.getUsername());
+
+            String type = "PRIVATE".equals(group.getPrivacy()) ? "GROUP_JOIN_REQUEST" : "GROUP_MEMBER_JOINED";
+            String content = "PRIVATE".equals(group.getPrivacy())
+                    ? actorFullName + " đã yêu cầu tham gia nhóm " + group.getName()
+                    : actorFullName + " đã tham gia vào nhóm " + group.getName();
+
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent(content);
+            dto.setType(type);
+            dto.setTargetType("GROUP");
+            dto.setTargetId(groupId);
+            notificationService.sendNotification(dto, owner, user);
+        }
     }
 
     @Override
@@ -490,17 +543,12 @@ public class GroupServiceImpl implements GroupService {
         member.setJoinedAt(Instant.now());
         groupMemberRepository.save(member);
 
-        // Create Notification
-        Notification notification = new Notification();
-        notification.setUser(member.getUser());
-        notification.setActor(admin.getUser());
-        notification.setType("GROUP_JOIN_APPROVED");
-        notification.setTargetType("GROUP");
-        notification.setTargetId(groupId);
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notification.setContent("Bạn đã tham gia vào nhóm " + member.getGroup().getName());
-        notificationRepository.save(notification);
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent("Bạn đã tham gia vào nhóm " + member.getGroup().getName());
+        dto.setType("GROUP_JOIN_APPROVED");
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+        notificationService.sendNotification(dto, member.getUser(), admin.getUser());
     }
 
     @Override
@@ -517,8 +565,15 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Trạng thái thành viên không phải là REQUESTED");
         }
 
-
         groupMemberRepository.delete(member);
+
+        User admin = userService.findByIdUser(adminId);
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent("Yêu cầu gia nhập nhóm " + member.getGroup().getName() + " của bạn đã bị từ chối");
+        dto.setType("GROUP_JOIN_REJECTED");
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+        notificationService.sendNotification(dto, member.getUser(), admin);
     }
 
     @Override
@@ -565,22 +620,32 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Chỉ Admin mới có quyền loại thành viên");
         }
 
-// 2. Không thể kick chính mình
+        // 2. Không thể kick chính mình
         if (targetUserId.equals(adminId)) {
             throw new RuntimeException("Bạn không thể kick chính mình");
         }
 
-// 3. Không thể kick Owner
+        // 3. Không thể kick Owner
         if (group.getOwner().getId().equals(targetUserId)) {
             throw new RuntimeException("Không thể kick chủ nhóm");
         }
-
 
         // Delete membership
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
-        groupMemberRepository.deleteById(targetPk);
+        GroupMember targetMember = groupMemberRepository.findById(targetPk).orElse(null);
+        if (targetMember != null) {
+            User targetUser = targetMember.getUser();
+            groupMemberRepository.deleteById(targetPk);
+
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent("Bạn đã bị mời ra khỏi nhóm " + group.getName());
+            dto.setType("GROUP_KICKED");
+            dto.setTargetType("GROUP");
+            dto.setTargetId(groupId);
+            notificationService.sendNotification(dto, targetUser, requester.getUser());
+        }
     }
 
     @Override
@@ -594,11 +659,9 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Lỗi");
         }
 
-
         if (newOwnerId.equals(currentOwnerId)) {
             throw new RuntimeException(" Lỗi");
         }
-
 
         User newOwner = userService.findByIdUser(newOwnerId);
 
@@ -609,31 +672,23 @@ public class GroupServiceImpl implements GroupService {
         GroupMember newOwnerMember = groupMemberRepository.findById(newOwnerMemberId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không phải thành viên trong nhóm"));
 
-
         group.setOwner(newOwner);
         groupRepository.save(group);
 
-
         newOwnerMember.setRole("ADMIN");
         groupMemberRepository.save(newOwnerMember);
-
 
         GroupMemberId oldOwnerMemberId = new GroupMemberId();
         oldOwnerMemberId.setGroupId(groupId);
         oldOwnerMemberId.setUserId(currentOwnerId);
         groupMemberRepository.deleteById(oldOwnerMemberId);
 
-
-        Notification notification = new Notification();
-        notification.setUser(newOwner);
-        notification.setActor(userService.findByIdUser(currentOwnerId));
-        notification.setType("GROUP_OWNER_CHANGE");
-        notification.setTargetType("GROUP");
-        notification.setTargetId(groupId);
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        notification.setContent("Bạn đã được ủy quyền thành ad của nhóm " + group.getName());
-        notificationRepository.save(notification);
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent("Bạn đã được ủy quyền thành admin của nhóm " + group.getName());
+        dto.setType("GROUP_OWNER_CHANGE");
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+        notificationService.sendNotification(dto, newOwner, userService.findByIdUser(currentOwnerId));
     }
 
     @Override
@@ -641,7 +696,6 @@ public class GroupServiceImpl implements GroupService {
     public void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId) {
         Group group = groupRepository.findById(groupId)
                 .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
-
 
         GroupMemberId actorPk = new GroupMemberId();
         actorPk.setGroupId(groupId);
@@ -656,24 +710,20 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Lỗi");
         }
 
-
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         GroupMember target = groupMemberRepository.findById(targetPk)
                 .orElseThrow(() -> new RuntimeException("Lỗi"));
 
-
         if (targetUserId.equals(actorId)) {
             throw new RuntimeException("Lỗi");
         }
-
 
         boolean isTargetOwner = group.getOwner().getId().equals(targetUserId);
         if (isTargetOwner && !"ADMIN".equals(newRole)) {
             throw new RuntimeException("Lỗi");
         }
-
 
         if (!"OWNER".equals(newRole)) {
             throw new RuntimeException("Lỗi");
@@ -685,22 +735,16 @@ public class GroupServiceImpl implements GroupService {
         group.setOwner(target.getUser());
         groupRepository.save(group);
 
-
         target.setRole("ADMIN");
         actor.setRole("MEMBER");
         groupMemberRepository.save(target);
         groupMemberRepository.save(actor);
 
-        Notification n = new Notification();
-        n.setUser(target.getUser());
-        n.setActor(actor.getUser());
-        n.setType("GROUP_OWNER_CHANGE");
-        n.setTargetType("GROUP");
-        n.setTargetId(groupId);
-        n.setIsRead(false);
-        n.setCreatedAt(Instant.now());
-        n.setContent("Bạn đã được ủy quyền thành admin nhóm " + group.getName());
-        notificationRepository.save(n);
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent("Bạn đã được ủy quyền thành admin nhóm " + group.getName());
+        dto.setType("GROUP_OWNER_CHANGE");
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+        notificationService.sendNotification(dto, target.getUser(), actor.getUser());
     }
 }
-

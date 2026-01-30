@@ -89,13 +89,22 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
     @Override
     public List<ChatRoomDTO> getUserChatRooms(Integer userId) {
-        List<ChatRoom> rooms = chatRoomMemberRepository.findByUser_Id(userId).stream()
+        List<ChatRoom> rooms = chatRoomMemberRepository.findByUser_IdOrderByLastMessageAtDesc(userId).stream()
                 .map(ChatRoomMember::getChatRoom)
                 .collect(Collectors.toList());
 
         return rooms.stream()
                 .map(room -> convertToDTO(room, userId))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void updateLastMessageAt(String firebaseRoomKey) {
+        chatRoomRepository.findByFirebaseRoomKey(firebaseRoomKey).ifPresent(room -> {
+            room.setLastMessageAt(Instant.now());
+            chatRoomRepository.save(room);
+        });
     }
 
     @Override

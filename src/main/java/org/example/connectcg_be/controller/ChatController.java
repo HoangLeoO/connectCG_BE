@@ -126,4 +126,13 @@ public class ChatController {
                 chatRoomService.deleteChatRoom(roomId, user);
                 return ResponseEntity.ok().build();
         }
+
+        @PostMapping("/last-message")
+        public ResponseEntity<Void> updateLastMessageAt(@RequestBody Map<String, String> payload) {
+                String firebaseRoomKey = payload.get("firebaseRoomKey");
+                if (firebaseRoomKey != null) {
+                        chatRoomService.updateLastMessageAt(firebaseRoomKey);
+                }
+                return ResponseEntity.ok().build();
+        }
 }
