@@ -24,6 +24,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
     private final NotificationRepository notificationRepository;
+    private final FriendSuggestionRepository friendSuggestionRepository;
 
     /**
      * Lấy danh sách các lời mời kết bạn đang ở trạng thái PENDING của người dùng hiện tại.
@@ -116,6 +117,10 @@ public class FriendRequestServiceImpl implements FriendRequestService {
             friendRepository.save(f2);
         }
         
+        // 3. Xóa gợi ý kết bạn (cả 2 chiều)
+        friendSuggestionRepository.deleteByUserIdAndSuggestedUserId(receiver.getId(), sender.getId());
+        friendSuggestionRepository.deleteByUserIdAndSuggestedUserId(sender.getId(), receiver.getId());
+        
         // Tạo thông báo cho người gửi lời mời (Sender)
         UserProfile receiverProfile = userProfileRepository.findByUserId(request.getReceiver().getId()).orElse(null);
         String receiverName = (receiverProfile != null && receiverProfile.getFullName() != null) 
@@ -194,6 +199,9 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         request.setCreatedAt(Instant.now());
 
         friendRequestRepository.save(request);
+        
+        // Xóa gợi ý kết bạn (nếu có)
+        friendSuggestionRepository.deleteByUserIdAndSuggestedUserId(senderId, receiverId);
 
         // Tạo thông báo cho người nhận (Receiver)
         UserProfile senderProfile = userProfileRepository.findByUserId(sender.getId()).orElse(null);
