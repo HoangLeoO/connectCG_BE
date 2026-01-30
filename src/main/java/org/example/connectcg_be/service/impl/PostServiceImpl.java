@@ -1,14 +1,17 @@
 package org.example.connectcg_be.service.impl;
 
+import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.GroupPostDTO;
+import org.example.connectcg_be.dto.MediaItem;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
+import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import jakarta.transaction.Transactional;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -39,6 +42,15 @@ public class PostServiceImpl implements PostService {
     @Autowired
     private org.example.connectcg_be.repository.GroupRepository groupRepository;
 
+    @Autowired
+    private MediaRepository mediaRepository;
+
+    @Autowired
+    private FriendRepository friendRepository;
+
+    @Autowired
+    private GroupMemberService groupMemberService;
+
     @Override
     public List<GroupPostDTO> getPendingPosts(Integer groupId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
@@ -50,6 +62,22 @@ public class PostServiceImpl implements PostService {
     public List<GroupPostDTO> getApprovedPosts(Integer groupId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
                 "APPROVED");
+        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<GroupPostDTO> getNewsfeedPosts(Integer userId) {
+        List<Integer> friendIds = friendRepository.findAllFriendIds(userId);
+        if (friendIds == null || friendIds.isEmpty()) friendIds = List.of(-1);
+        List<Integer> groupIds = groupMemberService.getAcceptedGroupIds(userId, "ACCEPTED");
+        if (groupIds == null || groupIds.isEmpty()) groupIds = List.of(-1);
+        List<Post> posts = postRepository.findNewsfeedPosts(userId, friendIds, groupIds);
+        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    @Override
+    public List<GroupPostDTO> getPostsByUserId(Integer userid) {
+        List<Post> posts = postRepository.findAllByAuthorIdAndStatusApproved(userid);
         return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
 
@@ -78,8 +106,21 @@ public class PostServiceImpl implements PostService {
         }
 
         // Get Images
-        List<PostMedia> mediaList = postMediaRepository.findAllByPostId(post.getId());
+        List<PostMedia> mediaList = postMediaRepository.findAllByPostId(post.getId())
+                .stream()
+                .sorted(Comparator.comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
+                .toList();
+
+        List<MediaItem> mediaDto = mediaList.stream().map(pm -> {
+            MediaItem item = new MediaItem();
+            item.setUrl(pm.getMedia().getUrl());
+            item.setType(pm.getMedia().getType());
+            item.setDisplayOrder(pm.getDisplayOrder());
+            return item;
+        }).toList();
+        dto.setMedia(mediaDto);
         List<String> images = mediaList.stream()
+                .sorted(Comparator.comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
                 .map(pm -> pm.getMedia().getUrl())
                 .collect(Collectors.toList());
         dto.setImages(images);
@@ -177,7 +218,7 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public Post createPost(org.example.connectcg_be.dto.CreatePostRequest request, boolean skipAiCheck,
-            Integer userId) {
+                           Integer userId) {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -220,7 +261,9 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        return postRepository.save(post);
+        Post savedPost = postRepository.save(post);
+        attachMediaToPost(savedPost, request.getMediaUrls(), author);
+        return savedPost;
     }
 
     @Override
@@ -258,11 +301,62 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        return postRepository.save(post);
+        Post savedPost = postRepository.save(post);
+        attachMediaToPost(savedPost, request.getMediaUrls(), savedPost.getAuthor());
+        return savedPost;
     }
 
     @Override
     public List<Post> getHomepagePostsByStatus(String status) {
         return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(status);
+    }
+
+    private void attachMediaToPost(Post post, List<String> mediaUrls, User uploader) {
+        if (mediaUrls == null) {
+            return; // không thay đổi media hiện có
+        }
+
+        // Xóa liên kết media cũ (nếu có)
+        List<PostMedia> existingMedia = postMediaRepository.findAllByPostId(post.getId());
+        if (!existingMedia.isEmpty()) {
+            postMediaRepository.deleteAll(existingMedia);
+        }
+
+        if (mediaUrls.isEmpty()) {
+            return; // xóa hết media cũ và không thêm mới
+        }
+
+        for (int i = 0; i < mediaUrls.size(); i++) {
+            String url = mediaUrls.get(i);
+            if (url == null || url.isBlank()) {
+                continue;
+            }
+
+            Media media = new Media();
+            media.setUploader(uploader);
+            media.setUrl(url);
+            media.setType(detectMediaType(url));
+            media.setUploadedAt(Instant.now());
+            media.setIsDeleted(false);
+            media = mediaRepository.save(media);
+
+            PostMedia postMedia = new PostMedia();
+            postMedia.setId(new PostMediaId(post.getId(), media.getId()));
+            postMedia.setPost(post);
+            postMedia.setMedia(media);
+            postMedia.setDisplayOrder(i);
+            postMediaRepository.save(postMedia);
+        }
+    }
+
+    private String detectMediaType(String url) {
+        if (url == null) {
+            return "IMAGE";
+        }
+        String lower = url.toLowerCase();
+        if (lower.endsWith(".mp4") || lower.endsWith(".webm") || lower.contains("video")) {
+            return "VIDEO";
+        }
+        return "IMAGE";
     }
 }

@@ -10,6 +10,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class GroupPostDTO {
+    private List<MediaItem> media;
     private Integer id;
     private String content;
     private Instant createdAt;

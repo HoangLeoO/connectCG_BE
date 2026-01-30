@@ -6,6 +6,8 @@ import org.example.connectcg_be.service.GroupMemberService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class GroupMemberServiceImpl implements GroupMemberService {
 
@@ -15,5 +17,13 @@ public class GroupMemberServiceImpl implements GroupMemberService {
     @Override
     public GroupMember addGroupMember(GroupMember groupMember) {
         return groupMemberRepository.save(groupMember);
+    }
+
+    @Override
+    public List<Integer> getAcceptedGroupIds(Integer userId, String status) {
+        return groupMemberRepository.findAllByIdUserIdAndStatus(userId, status)
+                .stream()
+                .map(gm -> gm.getId().getGroupId())
+                .toList();
     }
 }

@@ -2,12 +2,14 @@ package org.example.connectcg_be.controller;
 
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreatePostRequest;
+import org.example.connectcg_be.dto.GroupPostDTO;
 import org.example.connectcg_be.entity.Post;
 import org.example.connectcg_be.security.UserPrincipal;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
@@ -20,6 +22,18 @@ import java.util.List;
 public class PostController {
 
     private final org.example.connectcg_be.service.PostService postService;
+
+    @GetMapping("")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<GroupPostDTO>> getNewsfeedPosts(@AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok(postService.getNewsfeedPosts(currentUser.getId()));
+    }
+
+    @GetMapping("/user/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<List<GroupPostDTO>> getUserProfilePosts(@PathVariable("id") Integer id) {
+        return ResponseEntity.ok(postService.getPostsByUserId(id));
+    }
 
     @GetMapping("/public/homepage")
     @PreAuthorize("isAuthenticated()")
