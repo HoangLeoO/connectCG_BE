@@ -65,8 +65,9 @@ public class GroupController {
 
     @GetMapping
     @PreAuthorize("isAuthenticated()")
-    public List<GroupDTO> getAll() {
-        return groupService.findAllGroups();
+    public org.springframework.data.domain.Page<GroupDTO> getAll(
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable) {
+        return groupService.findAllGroups(pageable);
     }
 
     @PostMapping
@@ -79,23 +80,30 @@ public class GroupController {
 
     @GetMapping("/my-groups")
     @PreAuthorize("isAuthenticated()")
-    public List<GroupDTO> getMyGroups(Authentication authentication) {
+    public org.springframework.data.domain.Page<GroupDTO> getMyGroups(
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable,
+            Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return groupService.findMyGroups(userPrincipal.getId());
+        return groupService.findMyGroups(userPrincipal.getId(), pageable);
     }
 
     @GetMapping("/discover")
     @PreAuthorize("isAuthenticated()")
-    public List<GroupDTO> getDiscoverGroups(Authentication authentication) {
+    public org.springframework.data.domain.Page<GroupDTO> getDiscoverGroups(
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable,
+            Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return groupService.findDiscoverGroups(userPrincipal.getId());
+        return groupService.findDiscoverGroups(userPrincipal.getId(), pageable);
     }
 
     @GetMapping("/search")
     @PreAuthorize("isAuthenticated()")
-    public List<GroupDTO> searchGroups(@RequestParam("name") String name, Authentication authentication) {
+    public org.springframework.data.domain.Page<GroupDTO> searchGroups(
+            @RequestParam("name") String name,
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable,
+            Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return groupService.searchGroups(name, userPrincipal.getId());
+        return groupService.searchGroups(name, userPrincipal.getId(), pageable);
     }
 
     @GetMapping("/{id}/members")

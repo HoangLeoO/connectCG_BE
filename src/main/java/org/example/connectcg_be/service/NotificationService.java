@@ -14,4 +14,8 @@ public interface NotificationService {
 
     @Transactional
     void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver);
+
+    @Transactional
+    void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver,
+            org.example.connectcg_be.entity.User actor);
 }

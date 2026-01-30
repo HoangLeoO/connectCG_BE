@@ -8,15 +8,18 @@ import org.example.connectcg_be.entity.Group;
 import java.util.List;
 
 public interface GroupService {
-    List<GroupDTO> findAllGroups();
+    org.springframework.data.domain.Page<GroupDTO> findAllGroups(org.springframework.data.domain.Pageable pageable);
 
     Group addGroup(CreateGroup request, int userId);
 
-    List<GroupDTO> findMyGroups(Integer userId);
+    org.springframework.data.domain.Page<GroupDTO> findMyGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable);
 
-    List<GroupDTO> findDiscoverGroups(Integer userId);
+    org.springframework.data.domain.Page<GroupDTO> findDiscoverGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable);
 
-    List<GroupDTO> searchGroups(String query, Integer userId);
+    org.springframework.data.domain.Page<GroupDTO> searchGroups(String query, Integer userId,
+            org.springframework.data.domain.Pageable pageable);
 
     GroupDTO findById(Integer id, Integer userId);
 

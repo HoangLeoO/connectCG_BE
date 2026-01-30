@@ -51,6 +51,9 @@ public class PostServiceImpl implements PostService {
     @Autowired
     private GroupMemberService groupMemberService;
 
+    @Autowired
+    private GroupMemberRepository groupMemberRepository;
+
     @Override
     public List<GroupPostDTO> getPendingPosts(Integer groupId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
@@ -68,9 +71,11 @@ public class PostServiceImpl implements PostService {
     @Override
     public List<GroupPostDTO> getNewsfeedPosts(Integer userId) {
         List<Integer> friendIds = friendRepository.findAllFriendIds(userId);
-        if (friendIds == null || friendIds.isEmpty()) friendIds = List.of(-1);
+        if (friendIds == null || friendIds.isEmpty())
+            friendIds = List.of(-1);
         List<Integer> groupIds = groupMemberService.getAcceptedGroupIds(userId, "ACCEPTED");
-        if (groupIds == null || groupIds.isEmpty()) groupIds = List.of(-1);
+        if (groupIds == null || groupIds.isEmpty())
+            groupIds = List.of(-1);
         List<Post> posts = postRepository.findNewsfeedPosts(userId, friendIds, groupIds);
         return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
@@ -108,7 +113,8 @@ public class PostServiceImpl implements PostService {
         // Get Images
         List<PostMedia> mediaList = postMediaRepository.findAllByPostId(post.getId())
                 .stream()
-                .sorted(Comparator.comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
+                .sorted(Comparator
+                        .comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
                 .toList();
 
         List<MediaItem> mediaDto = mediaList.stream().map(pm -> {
@@ -120,7 +126,8 @@ public class PostServiceImpl implements PostService {
         }).toList();
         dto.setMedia(mediaDto);
         List<String> images = mediaList.stream()
-                .sorted(Comparator.comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
+                .sorted(Comparator
+                        .comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
                 .map(pm -> pm.getMedia().getUrl())
                 .collect(Collectors.toList());
         dto.setImages(images);
@@ -218,7 +225,7 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public Post createPost(org.example.connectcg_be.dto.CreatePostRequest request, boolean skipAiCheck,
-                           Integer userId) {
+            Integer userId) {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -237,6 +244,19 @@ public class PostServiceImpl implements PostService {
         if (request.getGroupId() != null) {
             Group group = groupRepository.findById(request.getGroupId())
                     .orElseThrow(() -> new RuntimeException("Group not found"));
+
+            // SECURITY: Check if user is an ACCEPTED member or owner/admin of the group
+            GroupMemberId memberId = new GroupMemberId();
+            memberId.setGroupId(group.getId());
+            memberId.setUserId(userId);
+            boolean isMember = groupMemberRepository.findById(memberId)
+                    .map(m -> "ACCEPTED".equals(m.getStatus()))
+                    .orElse(false);
+
+            if (!isMember && !group.getOwner().getId().equals(userId)) {
+                throw new RuntimeException("Bạn phải tham gia nhóm mới có thể đăng bài.");
+            }
+
             post.setGroup(group);
         }
 
