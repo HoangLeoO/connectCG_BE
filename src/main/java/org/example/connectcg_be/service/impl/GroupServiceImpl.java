@@ -385,11 +385,12 @@ public class GroupServiceImpl implements GroupService {
         id.setUserId(userId);
 
         GroupMember member = groupMemberRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Invitation not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy lời mời tham gia"));
 
         if (!"PENDING".equals(member.getStatus())) {
-            throw new RuntimeException("Invitation is not in PENDING status");
+            throw new RuntimeException("Lời mời không ở trạng thái PENDING");
         }
+
 
         groupMemberRepository.delete(member);
     }
@@ -411,7 +412,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void joinGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
         User user = userService.findByIdUser(userId);
 
@@ -423,11 +424,13 @@ public class GroupServiceImpl implements GroupService {
             GroupMember existing = groupMemberRepository.findById(id).orElse(null);
             if (existing != null) {
                 if ("ACCEPTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("Báº¡n Ä‘Ã£ lÃ  thÃ nh viÃªn cá»§a nhÃ³m nÃ y rá»“i.");
+                    throw new RuntimeException("Bạn đã là thành viên của nhóm này rồi.");
                 }
+
                 if ("REQUESTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("YÃªu cáº§u tham gia cá»§a báº¡n Ä‘ang chá» phÃª duyá»‡t.");
+                    throw new RuntimeException("Yêu cầu tham gia của bạn đang chờ phê duyệt.");
                 }
+
                 if ("PENDING".equals(existing.getStatus())) {
                     // If user has an invitation and tries to join manually:
                     // We automatically accept them if the group is PUBLIC.
@@ -467,20 +470,20 @@ public class GroupServiceImpl implements GroupService {
         adminPk.setGroupId(groupId);
         adminPk.setUserId(adminId);
         GroupMember admin = groupMemberRepository.findById(adminPk)
-                .orElseThrow(() -> new RuntimeException("Admin not found in group"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy admin trong nhóm"));
 
         if (!"ADMIN".equals(admin.getRole())) {
-            throw new RuntimeException("Only admins can approve requests");
+            throw new RuntimeException("Chỉ admin mới có quyền phê duyệt yêu cầu");
         }
 
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         GroupMember member = groupMemberRepository.findById(targetPk)
-                .orElseThrow(() -> new RuntimeException("Join request not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu tham gia nhóm"));
 
         if (!"REQUESTED".equals(member.getStatus())) {
-            throw new RuntimeException("Member status is not REQUESTED");
+            throw new RuntimeException("Trạng thái thành viên không phải là REQUESTED");
         }
 
         member.setStatus("ACCEPTED");
@@ -508,11 +511,12 @@ public class GroupServiceImpl implements GroupService {
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         GroupMember member = groupMemberRepository.findById(targetPk)
-                .orElseThrow(() -> new RuntimeException("Join request not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu tham gia nhóm"));
 
         if (!"REQUESTED".equals(member.getStatus())) {
-            throw new RuntimeException("Member status is not REQUESTED");
+            throw new RuntimeException("Trạng thái thành viên không phải là REQUESTED");
         }
+
 
         groupMemberRepository.delete(member);
     }
@@ -546,7 +550,7 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void kickMember(Integer groupId, Integer targetUserId, Integer adminId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
         // 1. Check if requester is Admin or Owner
         GroupMemberId adminPk = new GroupMemberId();
@@ -558,18 +562,19 @@ public class GroupServiceImpl implements GroupService {
         boolean isRequesterOwner = group.getOwner().getId().equals(adminId);
 
         if (!isRequesterAdmin && !isRequesterOwner) {
-            throw new RuntimeException("Only Admins can kick members");
+            throw new RuntimeException("Chỉ Admin mới có quyền loại thành viên");
         }
 
-        // 2. Cannot kick self
+// 2. Không thể kick chính mình
         if (targetUserId.equals(adminId)) {
-            throw new RuntimeException("You cannot kick yourself");
+            throw new RuntimeException("Bạn không thể kick chính mình");
         }
 
-        // 3. Cannot kick the Owner
+// 3. Không thể kick Owner
         if (group.getOwner().getId().equals(targetUserId)) {
-            throw new RuntimeException("Cannot kick the group owner");
+            throw new RuntimeException("Không thể kick chủ nhóm");
         }
+
 
         // Delete membership
         GroupMemberId targetPk = new GroupMemberId();

@@ -19,4 +19,6 @@ public interface ChatRoomService {
     ChatRoomDTO inviteMembers(Long roomId, List<Integer> invitedUserIds, User currentUser);
 
     ChatRoomDTO convertToDTO(org.example.connectcg_be.entity.ChatRoom room, Integer currentUserId);
+
+    void deleteChatRoom(Long roomId, User currentUser);
 }

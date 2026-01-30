@@ -226,6 +226,32 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 .build();
     }
 
+    @Override
+    @Transactional
+    public void deleteChatRoom(Long roomId, User currentUser) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        ChatRoomMember membership = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        if ("GROUP".equals(room.getType())) {
+            // Chỉ ADMIN mới được xóa nhóm
+            if (!"ADMIN".equals(membership.getRole())) {
+                throw new RuntimeException("Only group admins can delete the room");
+            }
+        } else {
+            // Với DIRECT chat, bất kỳ thành viên nào cũng có quyền xóa (xóa chung cho cả 2)
+            // Membership check đã ở trên rồi
+        }
+
+        // 1. Xóa tất cả thành viên
+        chatRoomMemberRepository.deleteByChatRoom_Id(roomId);
+
+        // 2. Xóa phòng chat
+        chatRoomRepository.delete(room);
+    }
+
     private void addMember(ChatRoom room, User user, String role) {
         ChatRoomMember member = new ChatRoomMember();
         ChatRoomMemberId id = new ChatRoomMemberId();

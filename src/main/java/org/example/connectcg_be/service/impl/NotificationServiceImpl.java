@@ -61,7 +61,7 @@ public class NotificationServiceImpl implements NotificationService {
         dto.setId(saved.getId());
         dto.setCreatedAt(saved.getCreatedAt());
         dto.setIsRead(false);
-        dto.setActorName("System");
+//        dto.setActorName("System");
         dto.setActorAvatar("https://cdn-icons-png.flaticon.com/512/149/149071.png");
         messagingTemplate.convertAndSendToUser(
                 receiver.getUsername(),
