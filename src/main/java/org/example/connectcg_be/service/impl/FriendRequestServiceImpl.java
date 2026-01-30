@@ -117,6 +117,11 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         }
         
         // Tạo thông báo cho người gửi lời mời (Sender)
+        UserProfile receiverProfile = userProfileRepository.findByUserId(request.getReceiver().getId()).orElse(null);
+        String receiverName = (receiverProfile != null && receiverProfile.getFullName() != null) 
+            ? receiverProfile.getFullName() 
+            : request.getReceiver().getUsername();
+        
         Notification notification = new Notification();
         notification.setUser(request.getSender()); // Sender nhận thông báo
         notification.setActor(request.getReceiver()); // Receiver là người hành động (accept)
@@ -125,7 +130,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         notification.setTargetId(request.getReceiver().getId());
         notification.setIsRead(false);
         notification.setCreatedAt(Instant.now());
-        notification.setContent(request.getReceiver().getUsername() + " đã đồng ý lời mời kết bạn.");
+        notification.setContent(receiverName + " đã đồng ý lời mời kết bạn.");
         
         notificationRepository.save(notification);
     }
@@ -191,6 +196,11 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         friendRequestRepository.save(request);
 
         // Tạo thông báo cho người nhận (Receiver)
+        UserProfile senderProfile = userProfileRepository.findByUserId(sender.getId()).orElse(null);
+        String senderName = (senderProfile != null && senderProfile.getFullName() != null) 
+            ? senderProfile.getFullName() 
+            : sender.getUsername();
+        
         Notification notification = new Notification();
         notification.setUser(receiver); // Receiver nhận thông báo
         notification.setActor(sender); // Sender là người hành động (gửi request)
@@ -199,7 +209,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         notification.setTargetId(request.getId());
         notification.setIsRead(false);
         notification.setCreatedAt(Instant.now());
-        notification.setContent(sender.getUsername() + " đã gửi cho bạn lời mời kết bạn.");
+        notification.setContent(senderName + " đã gửi cho bạn lời mời kết bạn.");
         
         notificationRepository.save(notification);
     }
