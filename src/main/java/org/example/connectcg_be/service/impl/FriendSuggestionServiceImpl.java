@@ -36,7 +36,7 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
     private final JdbcTemplate jdbcTemplate;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public Page<FriendSuggestionDTO> getSuggestions(Integer userId, Pageable pageable) {
         log.info("Fetching suggestions for user: {}", userId);
         
