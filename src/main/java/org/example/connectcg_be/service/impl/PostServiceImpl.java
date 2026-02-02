@@ -164,7 +164,12 @@ public class PostServiceImpl implements PostService {
             });
         }
 
-        // Count (nếu cần)
+        if (post.getGroup() != null) {
+            dto.setGroupId(post.getGroup().getId());
+            dto.setGroupName(post.getGroup().getName());
+        }
+
+        // Count
         dto.setReactCount((long) (post.getReactCount() != null ? post.getReactCount() : 0));
         dto.setCommentCount(post.getCommentCount() != null ? post.getCommentCount() : 0);
 

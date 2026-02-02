@@ -12,6 +12,10 @@ import java.util.List;
 public class GroupPostDTO {
     private List<MediaItem> media;
     private Integer id;
+
+    private Integer groupId;
+    private String groupName;
+
     private String content;
     private Instant createdAt;
     private Integer authorId;
