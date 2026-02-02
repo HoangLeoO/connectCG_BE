@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -32,6 +33,9 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
     @Autowired
     private UserAvatarRepository userAvatarRepository;
+
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -112,6 +116,27 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                             member.setLastReadAt(Instant.now());
                             chatRoomMemberRepository.save(member);
                         });
+            }
+
+            // Gửi thông báo WebSocket cho tất cả thành viên trong nhóm
+            List<ChatRoomMember> members = chatRoomMemberRepository.findByChatRoom_Id(room.getId());
+            for (ChatRoomMember member : members) {
+                // Calculate unread status for this specific member
+                int unreadCount = 0;
+                if (sender == null || !member.getUser().getId().equals(sender.getId())) {
+                    // It's a new message for this member
+                    unreadCount = 1;
+                }
+
+                messagingTemplate.convertAndSendToUser(
+                        member.getUser().getUsername(),
+                        "/queue/chat",
+                        Map.of(
+                                "type", "CHAT_UPDATE",
+                                "roomId", room.getId(),
+                                "firebaseRoomKey", room.getFirebaseRoomKey(),
+                                "lastMessageAt", room.getLastMessageAt(),
+                                "unreadCount", unreadCount));
             }
         });
     }
