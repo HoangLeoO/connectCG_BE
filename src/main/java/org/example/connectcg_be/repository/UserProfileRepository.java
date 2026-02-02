@@ -32,7 +32,11 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Intege
            "AND (:maritalStatus IS NULL OR p.maritalStatus = :maritalStatus) " +
            "AND (:lookingFor IS NULL OR p.lookingFor = :lookingFor) " +
            "AND u.id != :currentUserId " +
-           "ORDER BY (CASE WHEN f.id.userId IS NOT NULL THEN 1 ELSE 0 END) DESC, p.fullName ASC")
+           "ORDER BY " +
+           "(CASE WHEN f.id.userId IS NOT NULL THEN 1 ELSE 0 END) DESC, " +
+           "(CASE WHEN (:currentUserCityCode IS NOT NULL AND p.cityCode = :currentUserCityCode) THEN 1 ELSE 0 END) DESC, " +
+           "(CASE WHEN (:currentUserLookingFor IS NOT NULL AND p.lookingFor = :currentUserLookingFor) THEN 1 ELSE 0 END) DESC, " +
+           "p.fullName ASC")
     Page<MemberSearchResponse> searchMembers(
             @Param("currentUserId") Integer currentUserId,
             @Param("keyword") String keyword,
@@ -40,6 +44,8 @@ public interface UserProfileRepository extends JpaRepository<UserProfile, Intege
             @Param("cityCode") String cityCode,
             @Param("maritalStatus") String maritalStatus,
             @Param("lookingFor") String lookingFor,
+            @Param("currentUserCityCode") String currentUserCityCode,
+            @Param("currentUserLookingFor") String currentUserLookingFor,
             Pageable pageable
     );
 }

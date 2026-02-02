@@ -92,8 +92,14 @@ public class UserProfileServiceImpl implements UserProfileService {
             String lookingFor,
             Pageable pageable
     ) {
+        // Fetch current user profile to get city and lookingFor for prioritization
+        UserProfile currentUserProfile = userProfileRepository.findByUserId(currentUserId).orElse(null);
+        String currentUserCityCode = (currentUserProfile != null) ? currentUserProfile.getCityCode() : null;
+        String currentUserLookingFor = (currentUserProfile != null) ? currentUserProfile.getLookingFor() : null;
+
         Page<MemberSearchResponse> page = userProfileRepository.searchMembers(
-                currentUserId, keyword, gender, cityCode, maritalStatus, lookingFor, pageable
+                currentUserId, keyword, gender, cityCode, maritalStatus, lookingFor,
+                currentUserCityCode, currentUserLookingFor, pageable
         );
 
         page.getContent().forEach(dto -> {
