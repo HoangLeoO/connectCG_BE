@@ -22,4 +22,6 @@ public class ChatRoomDTO {
     private List<ChatMemberDTO> members;
     private Instant lastMessageAt;
     private Instant createdAt;
+    private Integer unreadCount;
+    private Instant clientClearedAt;
 }

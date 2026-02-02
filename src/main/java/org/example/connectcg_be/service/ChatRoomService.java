@@ -20,7 +20,13 @@ public interface ChatRoomService {
 
     ChatRoomDTO convertToDTO(org.example.connectcg_be.entity.ChatRoom room, Integer currentUserId);
 
-    void updateLastMessageAt(String firebaseRoomKey);
+    void updateLastMessageAt(String firebaseRoomKey, User sender);
 
     void deleteChatRoom(Long roomId, User currentUser);
+
+    ChatRoomDTO removeMember(Long roomId, Integer userIdToRemove, User currentUser);
+
+    void markAsRead(Long roomId, User currentUser);
+
+    void clearHistory(Long roomId, User currentUser);
 }
