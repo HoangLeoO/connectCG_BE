@@ -2,14 +2,11 @@ package org.example.connectcg_be.controller;
 
 import org.example.connectcg_be.dto.ReportAdminUpdateRequest;
 import org.example.connectcg_be.dto.ReportRequest;
-import org.example.connectcg_be.dto.ReportResponse;
 import org.example.connectcg_be.entity.Report;
 import org.example.connectcg_be.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/reports")
@@ -37,19 +34,28 @@ public class ReportController {
     }
 
     // =========================
-    // XEM DANH SÁCH REPORT
+    // XEM DANH SÁCH REPORT (Paginated)
     // =========================
     @GetMapping
-    public ResponseEntity<List<ReportResponse>> getReports(
-            @RequestParam(required = false) String status
-    ) {
-        return ResponseEntity.ok(
-                status == null
-                        ? reportService.getAllReports()
-                        : reportService.getReportsByStatus(status)
-        );
-    }
+    public ResponseEntity<?> getReports(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String targetType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                page, size, org.springframework.data.domain.Sort.by("createdAt").descending());
 
+        if (targetType != null && status != null) {
+            return ResponseEntity
+                    .ok(reportService.getReportsByTargetTypeAndStatusPaginated(targetType, status, pageable));
+        } else if (targetType != null) {
+            return ResponseEntity.ok(reportService.getReportsByTargetTypePaginated(targetType, pageable));
+        } else if (status != null) {
+            return ResponseEntity.ok(reportService.getReportsByStatusPaginated(status, pageable));
+        } else {
+            return ResponseEntity.ok(reportService.getReportsPaginated(pageable));
+        }
+    }
 
     // =========================
     // XEM CHI TIẾT REPORT
@@ -65,8 +71,7 @@ public class ReportController {
     @PutMapping("/{id}")
     public ResponseEntity<?> updateReportStatus(
             @PathVariable Integer id,
-            @RequestBody ReportAdminUpdateRequest request
-    ) {
+            @RequestBody ReportAdminUpdateRequest request) {
         reportService.updateReport(id, request, "admin");
         return ResponseEntity.ok("Report updated");
     }
