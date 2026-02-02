@@ -22,6 +22,9 @@ public class PostServiceImpl implements PostService {
     private PostRepository postRepository;
 
     @Autowired
+    private ReactionRepository reactionRepository;
+
+    @Autowired
     private PostMediaRepository postMediaRepository;
 
     @Autowired
@@ -55,17 +58,21 @@ public class PostServiceImpl implements PostService {
     private GroupMemberRepository groupMemberRepository;
 
     @Override
-    public List<GroupPostDTO> getPendingPosts(Integer groupId) {
+    public List<GroupPostDTO> getPendingPosts(Integer groupId,Integer userId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
                 "PENDING");
-        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return posts.stream()
+                .map(post -> convertToDTO(post, userId))
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<GroupPostDTO> getApprovedPosts(Integer groupId) {
+    public List<GroupPostDTO> getApprovedPosts(Integer groupId,Integer userId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
                 "APPROVED");
-        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return posts.stream()
+                .map(post -> convertToDTO(post, userId))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -77,16 +84,20 @@ public class PostServiceImpl implements PostService {
         if (groupIds == null || groupIds.isEmpty())
             groupIds = List.of(-1);
         List<Post> posts = postRepository.findNewsfeedPosts(userId, friendIds, groupIds);
-        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return posts.stream()
+                .map(post -> convertToDTO(post, userId))
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<GroupPostDTO> getPostsByUserId(Integer userid) {
-        List<Post> posts = postRepository.findAllByAuthorIdAndStatusApproved(userid);
-        return posts.stream().map(this::convertToDTO).collect(Collectors.toList());
+    public List<GroupPostDTO> getPostsByUserId(Integer userId) {
+        List<Post> posts = postRepository.findAllByAuthorIdAndStatusApproved(userId);
+        return posts.stream()
+                .map(post -> convertToDTO(post, userId))
+                .collect(Collectors.toList());
     }
 
-    private GroupPostDTO convertToDTO(Post post) {
+    private GroupPostDTO convertToDTO(Post post, Integer currentUserId) {
         GroupPostDTO dto = new GroupPostDTO();
         dto.setId(post.getId());
         dto.setContent(post.getContent());
@@ -144,6 +155,17 @@ public class PostServiceImpl implements PostService {
                 dto.setApprovedByFullName(post.getApprovedBy().getUsername());
             }
         }
+        if (currentUserId != null) {
+            org.example.connectcg_be.entity.ReactionId reactionId =
+                    new org.example.connectcg_be.entity.ReactionId(currentUserId, post.getId());
+
+            reactionRepository.findById(reactionId).ifPresent(reaction -> {
+                dto.setCurrentUserReaction(reaction.getType());
+            });
+        }
+
+        // Count (nếu cần)
+        dto.setReactCount(reactionRepository.countByPostId(post.getId()));
 
         return dto;
     }
@@ -151,14 +173,17 @@ public class PostServiceImpl implements PostService {
     @Override
     public List<GroupPostDTO> getPendingHomepagePosts() {
         return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc("PENDING")
-                .stream().map(this::convertToDTO).collect(Collectors.toList());
+        .stream()
+                .map(post -> convertToDTO(post, null))
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<GroupPostDTO> getAuditHomepagePosts() {
         return postRepository
                 .findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc("APPROVED", "TOXIC")
-                .stream().map(this::convertToDTO).collect(Collectors.toList());
+                .stream().map(post -> convertToDTO(post, null))
+                .collect(Collectors.toList());
     }
 
     @Override
