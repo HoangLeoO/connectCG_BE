@@ -747,4 +747,16 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetId(groupId);
         notificationService.sendNotification(dto, target.getUser(), actor.getUser());
     }
+    @Override
+    @Transactional
+    public void recoverGroup(Integer groupId) {
+        // Sử dụng findById gốc để tìm cả nhóm đã xóa (deleted = true)
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+        // Chỉ khôi phục nếu đang bị xóa
+        if (group.getIsDeleted()) {
+            group.setIsDeleted(false);
+            groupRepository.save(group);
+        }
+    }
 }
