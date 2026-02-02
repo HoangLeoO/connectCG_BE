@@ -22,4 +22,6 @@ public class GroupPostDTO {
     private String approvedByFullName;
     private String aiStatus;
     private String visibility;
+    private String currentUserReaction; // VD: "LOVE", "LIKE"... hoặc null
+    private Long reactCount;            // Tổng số reaction
 }
