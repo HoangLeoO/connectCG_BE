@@ -3,10 +3,7 @@ package org.example.connectcg_be.dto;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.util.List;
 
@@ -15,7 +12,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreatePostRequest {
-
     @NotBlank(message = "Nội dung không được để trống")
     @Size(max = 5000, message = "Nội dung tối đa 5000 kí tự")
     private String content;

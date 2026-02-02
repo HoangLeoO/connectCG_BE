@@ -35,14 +35,16 @@ public class GroupController {
 
     @GetMapping("/{id}/posts/pending")
     @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
-    public List<org.example.connectcg_be.dto.GroupPostDTO> getPendingPosts(@PathVariable("id") Integer id) {
-        return postService.getPendingPosts(id);
+    public List<org.example.connectcg_be.dto.GroupPostDTO> getPendingPosts(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return postService.getPendingPosts(id,userPrincipal.getId());
     }
 
     @GetMapping("/{id}/posts")
     @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or @groupSecurity.isPublicGroup(#id)")
-    public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id) {
-        return postService.getApprovedPosts(id);
+    public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return postService.getApprovedPosts(id,userPrincipal.getId());
     }
 
     @PostMapping("/{id}/posts/{postId}/approve")

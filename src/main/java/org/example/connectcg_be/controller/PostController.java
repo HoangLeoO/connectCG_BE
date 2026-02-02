@@ -3,8 +3,11 @@ package org.example.connectcg_be.controller;
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreatePostRequest;
 import org.example.connectcg_be.dto.GroupPostDTO;
+import org.example.connectcg_be.dto.ReactionRequest;
 import org.example.connectcg_be.entity.Post;
 import org.example.connectcg_be.security.UserPrincipal;
+import org.example.connectcg_be.service.ReactionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,6 +25,9 @@ import java.util.List;
 public class PostController {
 
     private final org.example.connectcg_be.service.PostService postService;
+
+    @Autowired
+    private ReactionService reactionService;
 
     @GetMapping("")
     @PreAuthorize("isAuthenticated()")
@@ -84,10 +90,28 @@ public class PostController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deletePost(@PathVariable Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         postService.rejectPost(id, userPrincipal.getId());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/react")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> reactToPost(@PathVariable Integer id, Authentication authentication, @RequestBody ReactionRequest request){
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        reactionService.reactToPost(id, userPrincipal.getId(), request.getReaction());
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/{id}/react")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> unReactToPost(
+            @PathVariable Integer id,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        reactionService.unreactToPost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
 }
