@@ -24,4 +24,5 @@ public class ChatRoomDTO {
     private Instant createdAt;
     private Integer unreadCount;
     private Instant clientClearedAt;
+    private String currentUserRole;
 }

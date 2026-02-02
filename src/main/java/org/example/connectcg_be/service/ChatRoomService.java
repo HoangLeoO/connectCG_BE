@@ -29,4 +29,6 @@ public interface ChatRoomService {
     void markAsRead(Long roomId, User currentUser);
 
     void clearHistory(Long roomId, User currentUser);
+
+    void leaveChatRoom(Long roomId, User currentUser);
 }

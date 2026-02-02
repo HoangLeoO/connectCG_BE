@@ -145,6 +145,15 @@ public class ChatController {
                 return ResponseEntity.ok().build();
         }
 
+        @PostMapping("/{roomId}/leave")
+        public ResponseEntity<Void> leaveRoom(@AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long roomId) {
+                User user = userRepository.findById(currentUser.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+                chatRoomService.leaveChatRoom(roomId, user);
+                return ResponseEntity.ok().build();
+        }
+
         @DeleteMapping("/{roomId}")
         public ResponseEntity<Void> deleteRoom(
                         @AuthenticationPrincipal UserPrincipal currentUser,
