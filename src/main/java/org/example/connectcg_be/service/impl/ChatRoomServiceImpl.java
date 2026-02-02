@@ -100,10 +100,19 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
     @Override
     @Transactional
-    public void updateLastMessageAt(String firebaseRoomKey) {
+    public void updateLastMessageAt(String firebaseRoomKey, User sender) {
         chatRoomRepository.findByFirebaseRoomKey(firebaseRoomKey).ifPresent(room -> {
             room.setLastMessageAt(Instant.now());
             chatRoomRepository.save(room);
+
+            // Tự động đánh dấu là đã đọc cho người gửi
+            if (sender != null) {
+                chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(), sender.getId())
+                        .ifPresent(member -> {
+                            member.setLastReadAt(Instant.now());
+                            chatRoomMemberRepository.save(member);
+                        });
+            }
         });
     }
 
@@ -222,7 +231,7 @@ public class ChatRoomServiceImpl implements ChatRoomService {
             }
         }
 
-        return ChatRoomDTO.builder()
+        ChatRoomDTO dto = ChatRoomDTO.builder()
                 .id(room.getId())
                 .type(room.getType())
                 .name(name)
@@ -233,6 +242,52 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 .lastMessageAt(room.getLastMessageAt())
                 .createdAt(room.getCreatedAt())
                 .build();
+
+        // Calculate unread count (simplified: 1 if unread, 0 if read)
+        ChatRoomMember currentMember = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(room.getId(), currentUserId)
+                .orElse(null);
+        if (currentMember != null) {
+            dto.setClientClearedAt(currentMember.getClientClearedAt());
+
+            if (room.getLastMessageAt() != null) {
+                Instant lastRead = currentMember.getLastReadAt();
+                Instant clearedAt = currentMember.getClientClearedAt();
+
+                // If last message is newer than last read AND newer than clear time -> unread
+                boolean isNewerThanRead = lastRead == null || room.getLastMessageAt().isAfter(lastRead);
+                boolean isNewerThanClear = clearedAt == null || room.getLastMessageAt().isAfter(clearedAt);
+
+                if (isNewerThanRead && isNewerThanClear) {
+                    dto.setUnreadCount(1);
+                } else {
+                    dto.setUnreadCount(0);
+                }
+            } else {
+                dto.setUnreadCount(0);
+            }
+        } else {
+            dto.setUnreadCount(0);
+        }
+
+        return dto;
+    }
+
+    @Override
+    @Transactional
+    public void markAsRead(Long roomId, User currentUser) {
+        ChatRoomMember member = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+        member.setLastReadAt(Instant.now());
+        chatRoomMemberRepository.save(member);
+    }
+
+    @Override
+    @Transactional
+    public void clearHistory(Long roomId, User currentUser) {
+        ChatRoomMember member = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+        member.setClientClearedAt(Instant.now());
+        chatRoomMemberRepository.save(member);
     }
 
     @Override
@@ -259,6 +314,40 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
         // 2. Xóa phòng chat
         chatRoomRepository.delete(room);
+    }
+
+    @Override
+    @Transactional
+    public ChatRoomDTO removeMember(Long roomId, Integer userIdToRemove, User currentUser) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        if (!"GROUP".equals(room.getType())) {
+            throw new RuntimeException("Cannot remove members from direct chat");
+        }
+
+        // Check if current user is ADMIN of the room
+        ChatRoomMember adminMembership = chatRoomMemberRepository
+                .findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        if (!"ADMIN".equals(adminMembership.getRole())) {
+            throw new RuntimeException("Only admins can remove members");
+        }
+
+        // Cannot remove self (use Leave/Delete Group instead)
+        if (currentUser.getId().equals(userIdToRemove)) {
+            throw new RuntimeException("Cannot kick yourself. Use 'Leave Group' or 'Delete Group' instead.");
+        }
+
+        // Check if target user is a member
+        ChatRoomMember targetMembership = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, userIdToRemove)
+                .orElseThrow(() -> new RuntimeException("User is not a member of this room"));
+
+        // Remove the member
+        chatRoomMemberRepository.delete(targetMembership);
+
+        return convertToDTO(room, currentUser.getId());
     }
 
     private void addMember(ChatRoom room, User user, String role) {

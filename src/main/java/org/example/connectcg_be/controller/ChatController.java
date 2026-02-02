@@ -115,6 +115,36 @@ public class ChatController {
                 return ResponseEntity.ok(chatRoomService.inviteMembers(roomId, userIds, inviter));
         }
 
+        @DeleteMapping("/{roomId}/members/{userId}")
+        public ResponseEntity<ChatRoomDTO> removeMember(
+                        @AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long roomId,
+                        @PathVariable Integer userId) {
+
+                User user = userRepository.findById(currentUser.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                return ResponseEntity.ok(chatRoomService.removeMember(roomId, userId, user));
+        }
+
+        @PutMapping("/{roomId}/read")
+        public ResponseEntity<Void> markAsRead(@AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long roomId) {
+                User user = userRepository.findById(currentUser.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+                chatRoomService.markAsRead(roomId, user);
+                return ResponseEntity.ok().build();
+        }
+
+        @PutMapping("/{roomId}/clear")
+        public ResponseEntity<Void> clearHistory(@AuthenticationPrincipal UserPrincipal currentUser,
+                        @PathVariable Long roomId) {
+                User user = userRepository.findById(currentUser.getId())
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+                chatRoomService.clearHistory(roomId, user);
+                return ResponseEntity.ok().build();
+        }
+
         @DeleteMapping("/{roomId}")
         public ResponseEntity<Void> deleteRoom(
                         @AuthenticationPrincipal UserPrincipal currentUser,
@@ -128,10 +158,13 @@ public class ChatController {
         }
 
         @PostMapping("/last-message")
-        public ResponseEntity<Void> updateLastMessageAt(@RequestBody Map<String, String> payload) {
+        public ResponseEntity<Void> updateLastMessageAt(@AuthenticationPrincipal UserPrincipal currentUser,
+                        @RequestBody Map<String, String> payload) {
                 String firebaseRoomKey = payload.get("firebaseRoomKey");
                 if (firebaseRoomKey != null) {
-                        chatRoomService.updateLastMessageAt(firebaseRoomKey);
+                        User user = currentUser != null ? userRepository.findById(currentUser.getId()).orElse(null)
+                                        : null;
+                        chatRoomService.updateLastMessageAt(firebaseRoomKey, user);
                 }
                 return ResponseEntity.ok().build();
         }
