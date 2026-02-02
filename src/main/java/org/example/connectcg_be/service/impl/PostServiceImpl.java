@@ -1,13 +1,16 @@
 package org.example.connectcg_be.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.example.connectcg_be.dto.CreatePostRequest;
 import org.example.connectcg_be.dto.GroupPostDTO;
 import org.example.connectcg_be.dto.MediaItem;
+import org.example.connectcg_be.dto.PostEventDTO;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -57,8 +60,11 @@ public class PostServiceImpl implements PostService {
     @Autowired
     private GroupMemberRepository groupMemberRepository;
 
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
     @Override
-    public List<GroupPostDTO> getPendingPosts(Integer groupId,Integer userId) {
+    public List<GroupPostDTO> getPendingPosts(Integer groupId, Integer userId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
                 "PENDING");
         return posts.stream()
@@ -67,7 +73,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public List<GroupPostDTO> getApprovedPosts(Integer groupId,Integer userId) {
+    public List<GroupPostDTO> getApprovedPosts(Integer groupId, Integer userId) {
         List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
                 "APPROVED");
         return posts.stream()
@@ -179,7 +185,7 @@ public class PostServiceImpl implements PostService {
     @Override
     public List<GroupPostDTO> getPendingHomepagePosts() {
         return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc("PENDING")
-        .stream()
+                .stream()
                 .map(post -> convertToDTO(post, null))
                 .collect(Collectors.toList());
     }
@@ -255,8 +261,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
-    public Post createPost(org.example.connectcg_be.dto.CreatePostRequest request, boolean skipAiCheck,
-            Integer userId) {
+    public Post createPost(CreatePostRequest request, boolean skipAiCheck,
+                           Integer userId) {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -314,6 +320,11 @@ public class PostServiceImpl implements PostService {
 
         Post savedPost = postRepository.save(post);
         attachMediaToPost(savedPost, request.getMediaUrls(), author);
+        if ("APPROVED".equals(savedPost.getStatus())) {
+            GroupPostDTO dto = convertToDTO(savedPost, null);
+            PostEventDTO event = new PostEventDTO("CREATED", dto, savedPost.getId());
+            messagingTemplate.convertAndSend("/topic/posts", event);
+        }
         return savedPost;
     }
 
@@ -354,7 +365,28 @@ public class PostServiceImpl implements PostService {
 
         Post savedPost = postRepository.save(post);
         attachMediaToPost(savedPost, request.getMediaUrls(), savedPost.getAuthor());
+        if ("APPROVED".equals(savedPost.getStatus())) {
+            GroupPostDTO dto = convertToDTO(savedPost, null);
+            PostEventDTO event = new PostEventDTO("UPDATED", dto, savedPost.getId());
+            messagingTemplate.convertAndSend("/topic/posts", event);
+        }
         return savedPost;
+    }
+
+
+    @Transactional
+    @Override
+    public void deletePost(Integer postId, Integer userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
+        if (!post.getAuthor().getId().equals(userId)) {
+            throw new RuntimeException("Bạn không có quyền xóa bài viết này");
+        }
+        post.setIsDeleted(true);
+        postRepository.save(post);
+        // Broadcast realtime event
+        PostEventDTO event = new PostEventDTO("DELETED", null, postId);
+        messagingTemplate.convertAndSend("/topic/posts", event);
     }
 
     @Override

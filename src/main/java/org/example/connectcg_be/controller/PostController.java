@@ -91,11 +91,21 @@ public class PostController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> deletePost(@PathVariable Integer id, Authentication authentication) {
+    public ResponseEntity<Void> rejectPost(@PathVariable Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         postService.rejectPost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<?> deletePost(
+            @PathVariable Integer postId,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        postService.deletePost(postId, userPrincipal.getId());
+        return ResponseEntity.ok().build();
+    }
+
+
 
     @PostMapping("/{id}/react")
     @PreAuthorize("isAuthenticated()")
