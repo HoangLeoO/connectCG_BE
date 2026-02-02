@@ -22,6 +22,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Boolean existsByUsername(String username);
 
     Boolean existsByEmail(String email);
+
+    java.util.List<User> findByRole(String role);
+
     long countByRoleAndIsDeletedFalse(String role);
 
     long countByRoleAndIsDeletedFalseAndIsLockedFalse(String role);
@@ -38,21 +41,19 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             @org.springframework.data.repository.query.Param("role") String role,
             org.springframework.data.domain.Pageable pageable);
 
-
     @Query("""
-    SELECT u FROM User u
-    WHERE u.isDeleted = false
-    AND (:role IS NULL OR u.role = :role)
-    AND (
-        :keyword IS NULL OR
-        LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
-        LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
-    )
-""")
+                SELECT u FROM User u
+                WHERE u.isDeleted = false
+                AND (:role IS NULL OR u.role = :role)
+                AND (
+                    :keyword IS NULL OR
+                    LOWER(u.username) LIKE LOWER(CONCAT('%', :keyword, '%')) OR
+                    LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                )
+            """)
     Page<User> adminSearchUsers(
             @Param("keyword") String keyword,
             @Param("role") String role,
-            Pageable pageable
-    );
+            Pageable pageable);
 
 }
