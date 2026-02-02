@@ -18,7 +18,7 @@ public class FriendSuggestionScheduler {
      * Chạy lúc 2:00 AM hàng ngày
      * Cron: 0 0 2 * * * (giây phút giờ ngày tháng thứ)
      */
-    @Scheduled(cron = "0 0 2 * * *")
+    @Scheduled(cron = "0 0 2 * * *", zone = "Asia/Ho_Chi_Minh")
     public void refreshAllSuggestions() {
         log.info("Starting scheduled job: Refresh all friend suggestions");
         try {
@@ -33,7 +33,7 @@ public class FriendSuggestionScheduler {
      * Dọn dẹp các gợi ý đã hết hạn
      * Chạy lúc 3:00 AM hàng ngày
      */
-    @Scheduled(cron = "0 0 3 * * *")
+    @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Ho_Chi_Minh")
     public void cleanupExpiredSuggestions() {
         log.info("Starting scheduled job: Cleanup expired suggestions");
         try {
