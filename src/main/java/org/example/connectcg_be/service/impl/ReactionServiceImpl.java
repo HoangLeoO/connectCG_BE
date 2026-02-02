@@ -24,11 +24,10 @@ public class ReactionServiceImpl implements ReactionService {
     @Autowired
     private UserRepository userRepository;
 
-
     @Override
     @Transactional
     public void reactToPost(Integer postId, Integer userId, String type) {
-// 1. Tạo Composite Key
+        // 1. Tạo Composite Key
         ReactionId id = new ReactionId(userId, postId);
         // 2. Kiểm tra xem đã tồn tại chưa
         Optional<Reaction> existingReaction = reactionRepository.findById(id);
@@ -50,9 +49,9 @@ public class ReactionServiceImpl implements ReactionService {
 
             reactionRepository.save(reaction);
 
-            // TODO: Cộng reactCount trong Post nếu cần hiển thị nhanh
-            // post.setReactCount(post.getReactCount() + 1);
-            // postRepository.save(post);
+            // Cộng reactCount trong Post
+            post.setReactCount((post.getReactCount() != null ? post.getReactCount() : 0) + 1);
+            postRepository.save(post);
         }
     }
 
@@ -63,7 +62,12 @@ public class ReactionServiceImpl implements ReactionService {
         if (reactionRepository.existsById(id)) {
             reactionRepository.deleteById(id);
 
-            // TODO: Trừ reactCount trong Post
+            // Trừ reactCount trong Post
+            Post post = postRepository.findById(postId).orElse(null);
+            if (post != null && post.getReactCount() != null && post.getReactCount() > 0) {
+                post.setReactCount(post.getReactCount() - 1);
+                postRepository.save(post);
+            }
         }
     }
 }
