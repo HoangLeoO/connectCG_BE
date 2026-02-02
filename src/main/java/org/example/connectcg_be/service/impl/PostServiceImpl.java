@@ -165,7 +165,8 @@ public class PostServiceImpl implements PostService {
         }
 
         // Count (nếu cần)
-        dto.setReactCount(reactionRepository.countByPostId(post.getId()));
+        dto.setReactCount((long) (post.getReactCount() != null ? post.getReactCount() : 0));
+        dto.setCommentCount(post.getCommentCount() != null ? post.getCommentCount() : 0);
 
         return dto;
     }

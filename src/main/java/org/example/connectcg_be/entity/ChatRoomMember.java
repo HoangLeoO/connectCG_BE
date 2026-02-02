@@ -50,4 +50,9 @@ public class ChatRoomMember {
     @Column(name = "left_at")
     private Instant leftAt;
 
+    @Column(name = "last_read_at")
+    private Instant lastReadAt;
+
+    @Column(name = "client_cleared_at")
+    private Instant clientClearedAt;
 }
