@@ -89,7 +89,7 @@ public class PostController {
         return ResponseEntity.ok(updatedPost);
     }
 
-    @DeleteMapping("/{id}")
+    @PostMapping("/{id}/reject")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> rejectPost(@PathVariable Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -105,11 +105,10 @@ public class PostController {
         return ResponseEntity.ok().build();
     }
 
-
-
     @PostMapping("/{id}/react")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> reactToPost(@PathVariable Integer id, Authentication authentication, @RequestBody ReactionRequest request){
+    public ResponseEntity<Void> reactToPost(@PathVariable Integer id, Authentication authentication,
+            @RequestBody ReactionRequest request) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         reactionService.reactToPost(id, userPrincipal.getId(), request.getReaction());
         return ResponseEntity.ok().build();
