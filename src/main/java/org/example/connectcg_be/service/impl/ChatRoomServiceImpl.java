@@ -248,6 +248,7 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 .orElse(null);
         if (currentMember != null) {
             dto.setClientClearedAt(currentMember.getClientClearedAt());
+            dto.setCurrentUserRole(currentMember.getRole());
 
             if (room.getLastMessageAt() != null) {
                 Instant lastRead = currentMember.getLastReadAt();
@@ -348,6 +349,39 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         chatRoomMemberRepository.delete(targetMembership);
 
         return convertToDTO(room, currentUser.getId());
+    }
+
+    @Override
+    @Transactional
+    public void leaveChatRoom(Long roomId, User currentUser) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new RuntimeException("Room not found"));
+
+        if (!"GROUP".equals(room.getType())) {
+            throw new RuntimeException("Cannot leave direct chat. Delete the chat instead.");
+        }
+
+        ChatRoomMember member = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
+
+        // Check if current user is ADMIN of the room
+        if ("ADMIN".equals(member.getRole())) {
+            List<ChatRoomMember> allMembers = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+            long adminCount = allMembers.stream().filter(m -> "ADMIN".equals(m.getRole())).count();
+            if (adminCount <= 1) {
+                throw new RuntimeException(
+                        "You are the only Admin. Please assign another Admin or dissolve the group.");
+            }
+        }
+
+        // Delete membership
+        chatRoomMemberRepository.delete(member);
+
+        // Check if room is empty
+        List<ChatRoomMember> remaining = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        if (remaining.isEmpty()) {
+            chatRoomRepository.delete(room);
+        }
     }
 
     private void addMember(ChatRoom room, User user, String role) {
