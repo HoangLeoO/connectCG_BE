@@ -18,6 +18,8 @@ public interface PostService {
 
         List<GroupPostDTO> getNewsfeedPosts(Integer userId);
 
+        org.springframework.data.domain.Page<GroupPostDTO> getNewsfeedPosts(Integer userId, int page, int size);
+
         List<GroupPostDTO> getPostsByUserId(Integer userid);
 
         void approvePost(Integer postId, Integer adminId);
