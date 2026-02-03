@@ -43,8 +43,12 @@ public class PostController {
 
     @GetMapping("/public/homepage")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<Post>> getPublicHomepagePosts() {
-        return ResponseEntity.ok(postService.getHomepagePostsByStatus("APPROVED"));
+    public ResponseEntity<?> getPublicHomepagePosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return ResponseEntity.ok(postService.getHomepagePostsByStatus("APPROVED", page, size, userPrincipal.getId()));
     }
 
     @GetMapping("/admin/pending")

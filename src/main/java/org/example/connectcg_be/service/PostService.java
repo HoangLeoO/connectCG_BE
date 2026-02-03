@@ -34,4 +34,8 @@ public interface PostService {
         void deletePost(Integer postId, Integer userId);
 
         List<org.example.connectcg_be.entity.Post> getHomepagePostsByStatus(String status);
+
+        org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO> getHomepagePostsByStatus(
+                        String status,
+                        int page, int size, Integer currentUserId);
 }
