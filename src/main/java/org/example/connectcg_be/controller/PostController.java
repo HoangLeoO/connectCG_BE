@@ -91,25 +91,28 @@ public class PostController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> rejectPost(@PathVariable Integer id, Authentication authentication) {
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        postService.rejectPost(id, userPrincipal.getId());
-        return ResponseEntity.ok().build();
-    }
-
-    @DeleteMapping("/{postId}")
-    public ResponseEntity<?> deletePost(
-            @PathVariable Integer postId,
+    public ResponseEntity<Void> deletePost(
+            @PathVariable Integer id,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        postService.deletePost(postId, userPrincipal.getId());
+        postService.deletePost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
 
-
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> rejectPost(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "false") Boolean manualStrike,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        postService.rejectPost(id, userPrincipal.getId(), manualStrike);
+        return ResponseEntity.ok().build();
+    }
 
     @PostMapping("/{id}/react")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> reactToPost(@PathVariable Integer id, Authentication authentication, @RequestBody ReactionRequest request){
+    public ResponseEntity<Void> reactToPost(@PathVariable Integer id, Authentication authentication,
+            @RequestBody ReactionRequest request) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         reactionService.reactToPost(id, userPrincipal.getId(), request.getReaction());
         return ResponseEntity.ok().build();

@@ -35,16 +35,18 @@ public class GroupController {
 
     @GetMapping("/{id}/posts/pending")
     @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
-    public List<org.example.connectcg_be.dto.GroupPostDTO> getPendingPosts(@PathVariable("id") Integer id, Authentication authentication) {
+    public List<org.example.connectcg_be.dto.GroupPostDTO> getPendingPosts(@PathVariable("id") Integer id,
+            Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return postService.getPendingPosts(id,userPrincipal.getId());
+        return postService.getPendingPosts(id, userPrincipal.getId());
     }
 
     @GetMapping("/{id}/posts")
-    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or @groupSecurity.isPublicGroup(#id)")
-    public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id, Authentication authentication) {
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
+    public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id,
+            Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        return postService.getApprovedPosts(id,userPrincipal.getId());
+        return postService.getApprovedPosts(id, userPrincipal.getId());
     }
 
     @PostMapping("/{id}/posts/{postId}/approve")
@@ -61,7 +63,7 @@ public class GroupController {
     public ResponseEntity<Void> rejectPost(@PathVariable("id") Integer id, @PathVariable("postId") Integer postId,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        postService.rejectPost(postId, userPrincipal.getId());
+        postService.rejectPost(postId, userPrincipal.getId(), false);
         return ResponseEntity.ok().build();
     }
 
@@ -109,7 +111,7 @@ public class GroupController {
     }
 
     @GetMapping("/{id}/members")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
     public List<TungGroupMemberDTO> getMembers(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.getMembers(id, userPrincipal.getId());
@@ -284,6 +286,26 @@ public class GroupController {
             String newRole = request.get("role");
             groupService.updateMemberRole(id, userId, newRole, userPrincipal.getId());
             return ResponseEntity.ok("Cập nhật vai trò thành công");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/members/banned")
+    @PreAuthorize("isAuthenticated() and (hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id))")
+    public List<TungGroupMemberDTO> getBannedMembers(@PathVariable("id") Integer id, Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.getBannedMembers(id, userPrincipal.getId());
+    }
+
+    @PostMapping("/{id}/members/{userId}/unban")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
+    public ResponseEntity<String> unbanMember(@PathVariable("id") Integer id, @PathVariable("userId") Integer userId,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        try {
+            groupService.unbanMember(id, userId, userPrincipal.getId());
+            return ResponseEntity.ok("Đã gỡ lệnh cấm thành công");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

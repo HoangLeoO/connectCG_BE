@@ -77,6 +77,9 @@ public class Post {
 
     /* ===== AI MODERATION ===== */
 
+    @Column(name = "ai_score")
+    private Double aiScore;
+
     @Size(max = 20)
     @ColumnDefault("'NOT_CHECKED'")
     @Column(name = "ai_status", length = 20)

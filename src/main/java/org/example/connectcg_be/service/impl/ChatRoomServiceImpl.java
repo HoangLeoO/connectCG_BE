@@ -134,9 +134,10 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                         Map.of(
                                 "type", "CHAT_UPDATE",
                                 "roomId", room.getId(),
-                                "firebaseRoomKey", room.getFirebaseRoomKey(),
-                                "lastMessageAt", room.getLastMessageAt(),
-                                "unreadCount", unreadCount));
+                                "data", Map.of(
+                                        "firebaseRoomKey", room.getFirebaseRoomKey(),
+                                        "lastMessageAt", room.getLastMessageAt(),
+                                        "unreadCount", unreadCount)));
             }
         });
     }
@@ -156,6 +157,19 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
         room.setName(newName);
         room = chatRoomRepository.save(room);
+
+        // Broadcast CHAT_UPDATE to all members
+        List<ChatRoomMember> members = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        for (ChatRoomMember m : members) {
+            messagingTemplate.convertAndSendToUser(
+                    m.getUser().getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_UPDATE",
+                            "roomId", roomId,
+                            "data", Map.of("name", newName)));
+        }
+
         return convertToDTO(room, currentUser.getId());
     }
 
@@ -174,6 +188,19 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
         room.setAvatarUrl(avatarUrl);
         room = chatRoomRepository.save(room);
+
+        // Broadcast CHAT_UPDATE to all members
+        List<ChatRoomMember> members = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        for (ChatRoomMember m : members) {
+            messagingTemplate.convertAndSendToUser(
+                    m.getUser().getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_UPDATE",
+                            "roomId", roomId,
+                            "data", Map.of("avatarUrl", avatarUrl)));
+        }
+
         return convertToDTO(room, currentUser.getId());
     }
 
@@ -209,6 +236,19 @@ public class ChatRoomServiceImpl implements ChatRoomService {
 
             // Add member
             addMember(room, invitedUser, "MEMBER");
+        }
+
+        // Broadcast CHAT_UPDATE to ALL members (newly added and existing)
+        List<ChatRoomMember> updatedMembers = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        for (ChatRoomMember m : updatedMembers) {
+            ChatRoomDTO roomDto = convertToDTO(room, m.getUser().getId());
+            messagingTemplate.convertAndSendToUser(
+                    m.getUser().getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_UPDATE",
+                            "roomId", roomId,
+                            "data", roomDto));
         }
 
         return convertToDTO(room, currentUser.getId());
@@ -335,6 +375,18 @@ public class ChatRoomServiceImpl implements ChatRoomService {
             // Membership check đã ở trên rồi
         }
 
+        // Broadcast CHAT_REMOVE to everyone before deleting
+        List<ChatRoomMember> membersToDelete = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        for (ChatRoomMember m : membersToDelete) {
+            messagingTemplate.convertAndSendToUser(
+                    m.getUser().getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_REMOVE",
+                            "roomId", roomId,
+                            "reason", "DELETED"));
+        }
+
         // 1. Xóa tất cả thành viên
         chatRoomMemberRepository.deleteByChatRoom_Id(roomId);
 
@@ -373,6 +425,31 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         // Remove the member
         chatRoomMemberRepository.delete(targetMembership);
 
+        // Notify the kicked user to remove sidebar item
+        User targetUser = userRepository.findById(userIdToRemove).orElse(null);
+        if (targetUser != null) {
+            messagingTemplate.convertAndSendToUser(
+                    targetUser.getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_REMOVE",
+                            "roomId", roomId,
+                            "reason", "KICKED"));
+        }
+
+        // Notify remaining members to update their member list
+        List<ChatRoomMember> remainingMembers = chatRoomMemberRepository.findByChatRoom_Id(roomId);
+        for (ChatRoomMember m : remainingMembers) {
+            ChatRoomDTO roomDto = convertToDTO(room, m.getUser().getId());
+            messagingTemplate.convertAndSendToUser(
+                    m.getUser().getUsername(),
+                    "/queue/chat",
+                    Map.of(
+                            "type", "CHAT_UPDATE",
+                            "roomId", roomId,
+                            "data", roomDto));
+        }
+
         return convertToDTO(room, currentUser.getId());
     }
 
@@ -402,10 +479,31 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         // Delete membership
         chatRoomMemberRepository.delete(member);
 
+        // Notify the leaving user to remove from sidebar
+        messagingTemplate.convertAndSendToUser(
+                currentUser.getUsername(),
+                "/queue/chat",
+                Map.of(
+                        "type", "CHAT_REMOVE",
+                        "roomId", roomId,
+                        "reason", "LEFT"));
+
         // Check if room is empty
         List<ChatRoomMember> remaining = chatRoomMemberRepository.findByChatRoom_Id(roomId);
         if (remaining.isEmpty()) {
             chatRoomRepository.delete(room);
+        } else {
+            // Notify remaining members that someone left
+            for (ChatRoomMember m : remaining) {
+                ChatRoomDTO roomDto = convertToDTO(room, m.getUser().getId());
+                messagingTemplate.convertAndSendToUser(
+                        m.getUser().getUsername(),
+                        "/queue/chat",
+                        Map.of(
+                                "type", "CHAT_UPDATE",
+                                "roomId", roomId,
+                                "data", roomDto));
+            }
         }
     }
 

@@ -25,8 +25,11 @@ public class GroupPostDTO {
     private List<String> images;
     private String approvedByFullName;
     private String aiStatus;
+    private Double aiScore;
+    private String aiReason;
     private String visibility;
     private String currentUserReaction;
     private Long reactCount;
     private Integer commentCount;
+    private Integer authorViolationCount;
 }

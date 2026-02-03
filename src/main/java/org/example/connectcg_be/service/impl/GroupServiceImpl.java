@@ -40,6 +40,8 @@ public class GroupServiceImpl implements GroupService {
     private org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
     @Autowired
     private NotificationService notificationService;
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -180,7 +182,8 @@ public class GroupServiceImpl implements GroupService {
 
         group.setName(request.getName());
         group.setDescription(request.getDescription());
-        group.setPrivacy(request.getPrivacy());
+        // group.setPrivacy(request.getPrivacy()); // Locked for security and AI
+        // moderation reasons
 
         if (request.getImage() != null && !request.getImage().isEmpty()) {
             Media media = mediaService.createCoverMedia(request.getImage(), userId);
@@ -192,39 +195,32 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public List<TungGroupMemberDTO> getMembers(Integer groupId, Integer requesterId) {
-        Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
-                .orElseThrow(() -> new RuntimeException("Group not found"));
+        // Access is already checked by @PreAuthorize in GroupController
+        // Logically we only return accepted members for standard view
+        return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "ACCEPTED").stream()
+                .map(this::mapToMemberDTO)
+                .collect(Collectors.toList());
+    }
 
-        User requesterUser = userService.findByIdUser(requesterId);
-        boolean isSystemAdmin = "ADMIN".equals(requesterUser.getRole());
+    private TungGroupMemberDTO mapToMemberDTO(GroupMember member) {
+        UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(member.getUser().getId());
+        String avatarUrl = (avatar != null && avatar.getMedia() != null) ? avatar.getMedia().getUrl()
+                : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
 
-        if ("PRIVATE".equals(group.getPrivacy()) && !isSystemAdmin) {
-            GroupMemberId id = new GroupMemberId();
-            id.setGroupId(groupId);
-            id.setUserId(requesterId);
-            GroupMember requester = groupMemberRepository.findById(id).orElse(null);
-            if (requester == null || !"ACCEPTED".equals(requester.getStatus())) {
-                throw new RuntimeException("Bạn không thể xem vì đây là nhóm riêng tư");
-            }
-        }
+        UserProfile profile = userProfileRepository.findByUserId(member.getUser().getId()).orElse(null);
+        String fullName = profile != null ? profile.getFullName() : member.getUser().getUsername();
 
-        return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "ACCEPTED").stream().map(member -> {
-            UserAvatar avatar = userAvatarRepository.findByUserIdAndIsCurrentTrue(member.getUser().getId());
-            String avatarUrl = (avatar != null && avatar.getMedia() != null) ? avatar.getMedia().getUrl()
-                    : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
-
-            UserProfile profile = userProfileRepository.findByUserId(member.getUser().getId()).orElse(null);
-            String fullName = profile != null ? profile.getFullName() : member.getUser().getUsername();
-
-            return new TungGroupMemberDTO(
-                    member.getUser().getId(),
-                    member.getUser().getUsername(),
-                    fullName,
-                    avatarUrl,
-                    member.getRole(),
-                    member.getStatus(),
-                    member.getJoinedAt());
-        }).collect(Collectors.toList());
+        TungGroupMemberDTO dto = new TungGroupMemberDTO();
+        dto.setUserId(member.getUser().getId());
+        dto.setUsername(member.getUser().getUsername());
+        dto.setFullName(fullName);
+        dto.setAvatarUrl(avatarUrl);
+        dto.setRole(member.getRole());
+        dto.setStatus(member.getStatus());
+        dto.setJoinedAt(member.getJoinedAt());
+        dto.setViolationCount(member.getViolationCount());
+        dto.setLastViolationAt(member.getLastViolationAt());
+        return dto;
     }
 
     @Override
@@ -240,7 +236,27 @@ public class GroupServiceImpl implements GroupService {
         GroupMemberId memberId = new GroupMemberId();
         memberId.setGroupId(groupId);
         memberId.setUserId(userId);
+
+        User userLeaving = userService.findByIdUser(userId);
         groupMemberRepository.deleteById(memberId);
+
+        // Notify Owner/Admins that a member left
+        String actorFullName = userProfileRepository.findByUserId(userId)
+                .map(UserProfile::getFullName)
+                .orElse(userLeaving.getUsername());
+
+        TungNotificationDTO noti = new TungNotificationDTO();
+        noti.setContent(actorFullName + " đã rời khỏi nhóm " + group.getName());
+        noti.setType("GROUP_MEMBER_LEFT");
+        noti.setTargetType("GROUP");
+        noti.setTargetId(groupId);
+
+        notificationService.sendNotification(noti, group.getOwner(), userLeaving);
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "LEFT", groupId, userId, null);
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
@@ -250,7 +266,6 @@ public class GroupServiceImpl implements GroupService {
                 .orElseThrow(() -> new RuntimeException("Group not found"));
 
         User requester = userService.findByIdUser(userId);
-        // Cho phép xóa nếu là Owner hoặc Admin hệ thống
         boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(userId);
         boolean isSystemAdmin = requester != null && "ADMIN".equals(requester.getRole());
         if (!isOwner && !isSystemAdmin) {
@@ -259,15 +274,21 @@ public class GroupServiceImpl implements GroupService {
 
         group.setIsDeleted(true);
         groupRepository.save(group);
-        User owner = group.getOwner();
-        if (owner != null) {
+
+        // Fetch all current members to notify
+        List<GroupMember> members = groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "ACCEPTED");
+        for (GroupMember m : members) {
             TungNotificationDTO noti = new TungNotificationDTO();
-            noti.setContent("Nhóm '" + group.getName() + "' của bạn đã bị xóa do vi phạm quy tắc cộng đồng.");
             noti.setType("GROUP_DELETED");
             noti.setTargetType("GROUP");
             noti.setTargetId(groupId);
 
-            notificationService.sendNotification(noti, owner);
+            if (m.getUser().getId().equals(group.getOwner().getId())) {
+                noti.setContent("Nhóm '" + group.getName() + "' của bạn đã bị xóa.");
+            } else {
+                noti.setContent("Nhóm '" + group.getName() + "' đã bị xóa bởi quản trị viên.");
+            }
+            notificationService.sendNotification(noti, m.getUser(), requester);
         }
     }
 
@@ -287,16 +308,18 @@ public class GroupServiceImpl implements GroupService {
         }
 
         for (Integer userId : userIds) {
-            // Check if user exists
             User user = userService.findByIdUser(userId);
 
-            // Check if already a member
-            GroupMemberId id = new GroupMemberId();
-            id.setGroupId(groupId);
-            id.setUserId(userId);
+            GroupMemberId id = new GroupMemberId(groupId, userId);
+            Optional<GroupMember> existing = groupMemberRepository.findById(id);
 
-            if (groupMemberRepository.existsById(id)) {
-                continue; // Skip if already member
+            if (existing.isPresent()) {
+                if ("BANNED".equals(existing.get().getStatus())) {
+                    continue; // Skip banned users
+                }
+                if ("ACCEPTED".equals(existing.get().getStatus())) {
+                    continue; // Already a member
+                }
             }
 
             GroupMember member = new GroupMember();
@@ -334,6 +357,10 @@ public class GroupServiceImpl implements GroupService {
 
         GroupMember member = groupMemberRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Invitation not found"));
+
+        if ("BANNED".equals(member.getStatus())) {
+            throw new RuntimeException("Bạn đã bị cấm khỏi nhóm này.");
+        }
 
         if (!"PENDING".equals(member.getStatus())) {
             throw new RuntimeException("Invitation is not in PENDING status");
@@ -440,43 +467,50 @@ public class GroupServiceImpl implements GroupService {
         id.setGroupId(groupId);
         id.setUserId(userId);
 
-        if (groupMemberRepository.existsById(id)) {
-            GroupMember existing = groupMemberRepository.findById(id).orElse(null);
-            if (existing != null) {
-                if ("ACCEPTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("Bạn đã là thành viên của nhóm này rồi.");
-                }
+        Optional<GroupMember> existingMember = groupMemberRepository.findById(id);
+        if (existingMember.isPresent()) {
+            GroupMember member = existingMember.get();
+            if ("BANNED".equals(member.getStatus())) {
+                throw new RuntimeException("Bạn đã bị cấm khỏi nhóm này do vi phạm quy định nhiều lần.");
+            }
+            if ("ACCEPTED".equals(member.getStatus())) {
+                throw new RuntimeException("Bạn đã là thành viên của nhóm này rồi.");
+            }
 
-                if ("REQUESTED".equals(existing.getStatus())) {
-                    throw new RuntimeException("Yêu cầu tham gia của bạn đang chờ phê duyệt.");
-                }
+            if ("REQUESTED".equals(member.getStatus())) {
+                throw new RuntimeException("Yêu cầu tham gia của bạn đang chờ phê duyệt.");
+            }
 
-                if ("PENDING".equals(existing.getStatus())) {
-                    // If user has an invitation and tries to join manually:
-                    // We automatically accept them if the group is PUBLIC.
-                    if ("PUBLIC".equals(group.getPrivacy())) {
-                        existing.setStatus("ACCEPTED");
-                        existing.setJoinedAt(Instant.now());
-                        groupMemberRepository.save(existing);
+            if ("PENDING".equals(member.getStatus())) {
+                // If user has an invitation and tries to join manually:
+                if ("PUBLIC".equals(group.getPrivacy())) {
+                    member.setStatus("ACCEPTED");
+                    member.setJoinedAt(Instant.now());
+                    groupMemberRepository.save(member);
 
-                        // Notify the group owner
-                        User owner = group.getOwner();
-                        if (owner != null && !owner.getId().equals(userId)) {
-                            String actorFullName = userProfileRepository.findByUserId(userId)
-                                    .map(UserProfile::getFullName)
-                                    .orElse(user.getUsername());
-                            TungNotificationDTO dto = new TungNotificationDTO();
-                            dto.setContent(actorFullName + " đã tham gia vào nhóm " + group.getName());
-                            dto.setType("GROUP_MEMBER_JOINED");
-                            dto.setTargetType("GROUP");
-                            dto.setTargetId(groupId);
-                            notificationService.sendNotification(dto, owner, user);
-                        }
-                        return;
+                    // Notify the group owner
+                    User owner = group.getOwner();
+                    if (owner != null && !owner.getId().equals(userId)) {
+                        String actorFullName = userProfileRepository.findByUserId(userId)
+                                .map(UserProfile::getFullName)
+                                .orElse(user.getUsername());
+                        TungNotificationDTO dto = new TungNotificationDTO();
+                        dto.setContent(actorFullName + " đã tham gia vào nhóm " + group.getName());
+                        dto.setType("GROUP_MEMBER_JOINED");
+                        dto.setTargetType("GROUP");
+                        dto.setTargetId(groupId);
+                        notificationService.sendNotification(dto, owner, user);
                     }
-                    throw new RuntimeException(
-                            "Bạn đang có một lời mời gia nhập nhóm này. Vui lòng chấp nhận lời mời để tiếp tục.");
+
+                    // Broadcast realtime
+                    org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                            "JOINED", groupId, userId, mapToMemberDTO(member));
+                    messagingTemplate.convertAndSend("/topic/groups/membership", event);
+
+                    return;
                 }
+                throw new RuntimeException(
+                        "Bạn đang có một lời mời gia nhập nhóm này. Vui lòng chấp nhận lời mời để tiếp tục.");
             }
         }
 
@@ -513,6 +547,12 @@ public class GroupServiceImpl implements GroupService {
             dto.setTargetId(groupId);
             notificationService.sendNotification(dto, owner, user);
         }
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "ACCEPTED".equals(member.getStatus()) ? "JOINED" : "REQUESTED",
+                groupId, userId, mapToMemberDTO(member));
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
@@ -549,6 +589,11 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
         notificationService.sendNotification(dto, member.getUser(), admin.getUser());
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "APPROVED", groupId, targetUserId, mapToMemberDTO(member));
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
@@ -574,6 +619,11 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
         notificationService.sendNotification(dto, member.getUser(), admin);
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "REJECTED", groupId, targetUserId, null);
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
@@ -581,24 +631,9 @@ public class GroupServiceImpl implements GroupService {
         groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Nhóm của bạn không tồn tại"));
 
-        return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "REQUESTED").stream().map(member -> {
-            org.example.connectcg_be.entity.UserAvatar avatar = userAvatarRepository
-                    .findByUserIdAndIsCurrentTrue(member.getUser().getId());
-            String avatarUrl = avatar != null ? avatar.getMedia().getUrl()
-                    : "https://cdn-icons-png.flaticon.com/512/149/149071.png";
-
-            UserProfile profile = userProfileRepository.findByUserId(member.getUser().getId()).orElse(null);
-            String fullName = profile != null ? profile.getFullName() : member.getUser().getUsername();
-
-            return new TungGroupMemberDTO(
-                    member.getUser().getId(),
-                    member.getUser().getUsername(),
-                    fullName,
-                    avatarUrl,
-                    member.getRole(),
-                    member.getStatus(),
-                    member.getJoinedAt());
-        }).collect(Collectors.toList());
+        return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "REQUESTED").stream()
+                .map(this::mapToMemberDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -637,14 +672,20 @@ public class GroupServiceImpl implements GroupService {
         GroupMember targetMember = groupMemberRepository.findById(targetPk).orElse(null);
         if (targetMember != null) {
             User targetUser = targetMember.getUser();
-            groupMemberRepository.deleteById(targetPk);
+            targetMember.setStatus("BANNED");
+            groupMemberRepository.save(targetMember);
 
             TungNotificationDTO dto = new TungNotificationDTO();
-            dto.setContent("Bạn đã bị mời ra khỏi nhóm " + group.getName());
-            dto.setType("GROUP_KICKED");
+            dto.setContent("Bạn đã bị cấm khỏi nhóm " + group.getName());
+            dto.setType("GROUP_BANNED");
             dto.setTargetType("GROUP");
             dto.setTargetId(groupId);
             notificationService.sendNotification(dto, targetUser, requester.getUser());
+
+            // Broadcast realtime
+            org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                    "BANNED", groupId, targetUserId, null);
+            messagingTemplate.convertAndSend("/topic/groups/membership", event);
         }
     }
 
@@ -694,57 +735,107 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId) {
-        Group group = groupRepository.findById(groupId)
+        Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
-        GroupMemberId actorPk = new GroupMemberId();
-        actorPk.setGroupId(groupId);
-        actorPk.setUserId(actorId);
+        GroupMemberId actorPk = new GroupMemberId(groupId, actorId);
         GroupMember actor = groupMemberRepository.findById(actorPk)
-                .orElseThrow(() -> new RuntimeException("Lỗi"));
+                .orElseThrow(() -> new RuntimeException("Lỗi permission"));
 
-        boolean isActorOwner = group.getOwner().getId().equals(actorId);
-        boolean isActorAdmin = "ADMIN".equals(actor.getRole());
-
-        if (!isActorOwner && !isActorAdmin) {
-            throw new RuntimeException("Lỗi");
+        if (!"ADMIN".equals(actor.getRole()) && !group.getOwner().getId().equals(actorId)) {
+            throw new RuntimeException("Chỉ admin mới có quyền đổi vai trò");
         }
 
+        GroupMemberId targetPk = new GroupMemberId(groupId, targetUserId);
+        GroupMember target = groupMemberRepository.findById(targetPk)
+                .orElseThrow(() -> new RuntimeException("Thành viên không tồn tại"));
+
+        // Don't allow changing owner's role through this method directly if it's not a
+        // transfer
+        if (group.getOwner().getId().equals(targetUserId)) {
+            throw new RuntimeException("Không thể thay đổi vai trò của chủ nhóm tại đây");
+        }
+
+        target.setRole(newRole);
+        groupMemberRepository.save(target);
+
+        TungNotificationDTO dto = new TungNotificationDTO();
+        String roleName = "ADMIN".equals(newRole) ? "Quản trị viên" : "Thành viên";
+        dto.setContent("Vai trò của bạn trong nhóm " + group.getName() + " đã được thay đổi thành " + roleName);
+        dto.setType("GROUP_ROLE_CHANGED");
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+
+        notificationService.sendNotification(dto, target.getUser(), actor.getUser());
+    }
+
+    @Override
+    public List<TungGroupMemberDTO> getBannedMembers(Integer groupId, Integer requesterId) {
+        Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+
+        // Check if requester is Admin or Owner
+        GroupMemberId requesterPk = new GroupMemberId();
+        requesterPk.setGroupId(groupId);
+        requesterPk.setUserId(requesterId);
+        GroupMember requester = groupMemberRepository.findById(requesterPk).orElse(null);
+
+        boolean isAdmin = requester != null
+                && ("ADMIN".equals(requester.getRole()) || "OWNER".equals(requester.getRole()));
+        boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(requesterId);
+
+        if (!isAdmin && !isOwner) {
+            throw new RuntimeException("Bạn không có quyền xem danh sách thành viên bị cấm");
+        }
+
+        return groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "BANNED").stream()
+                .map(this::mapToMemberDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public void unbanMember(Integer groupId, Integer targetUserId, Integer adminId) {
+        Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+
+        // Check if requester is Admin or Owner
+        GroupMemberId adminPk = new GroupMemberId();
+        adminPk.setGroupId(groupId);
+        adminPk.setUserId(adminId);
+        GroupMember admin = groupMemberRepository.findById(adminPk)
+                .orElseThrow(() -> new RuntimeException("Bạn không phải là thành viên của nhóm"));
+
+        boolean isAdminOrOwner = "ADMIN".equals(admin.getRole()) || "OWNER".equals(admin.getRole());
+        boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(adminId);
+
+        if (!isAdminOrOwner && !isOwner) {
+            throw new RuntimeException("Bạn không có quyền gỡ lệnh cấm");
+        }
+
+        // Find banned member
         GroupMemberId targetPk = new GroupMemberId();
         targetPk.setGroupId(groupId);
         targetPk.setUserId(targetUserId);
         GroupMember target = groupMemberRepository.findById(targetPk)
-                .orElseThrow(() -> new RuntimeException("Lỗi"));
+                .orElseThrow(() -> new RuntimeException("Thành viên không tồn tại trong nhóm"));
 
-        if (targetUserId.equals(actorId)) {
-            throw new RuntimeException("Lỗi");
+        if (!"BANNED".equals(target.getStatus())) {
+            throw new RuntimeException("Thành viên này không bị cấm");
         }
 
-        boolean isTargetOwner = group.getOwner().getId().equals(targetUserId);
-        if (isTargetOwner && !"ADMIN".equals(newRole)) {
-            throw new RuntimeException("Lỗi");
-        }
-
-        if (!"OWNER".equals(newRole)) {
-            throw new RuntimeException("Lỗi");
-        }
-
-        if (!isActorOwner) {
-            throw new RuntimeException("Lỗi");
-        }
-        group.setOwner(target.getUser());
-        groupRepository.save(group);
-
-        target.setRole("ADMIN");
-        actor.setRole("MEMBER");
+        // Unban: Reset status and violation count
+        target.setStatus("ACCEPTED");
+        target.setViolationCount(0);
+        target.setLastViolationAt(null);
         groupMemberRepository.save(target);
-        groupMemberRepository.save(actor);
 
+        // Send notification
         TungNotificationDTO dto = new TungNotificationDTO();
-        dto.setContent("Bạn đã được ủy quyền thành admin nhóm " + group.getName());
-        dto.setType("GROUP_OWNER_CHANGE");
+        dto.setContent("Bạn đã được gỡ lệnh cấm khỏi nhóm " + group.getName());
+        dto.setType("GROUP_UNBAN");
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
-        notificationService.sendNotification(dto, target.getUser(), actor.getUser());
+        notificationService.sendNotification(dto, target.getUser(), admin.getUser());
     }
 }

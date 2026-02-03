@@ -1,10 +1,7 @@
 package org.example.connectcg_be.service.impl;
 
 import jakarta.transaction.Transactional;
-import org.example.connectcg_be.dto.CreatePostRequest;
-import org.example.connectcg_be.dto.GroupPostDTO;
-import org.example.connectcg_be.dto.MediaItem;
-import org.example.connectcg_be.dto.PostEventDTO;
+import org.example.connectcg_be.dto.*;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.GroupMemberService;
@@ -16,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,9 +35,6 @@ public class PostServiceImpl implements PostService {
     private UserAvatarRepository userAvatarRepository;
 
     @Autowired
-    private NotificationRepository notificationRepository;
-
-    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -59,6 +54,9 @@ public class PostServiceImpl implements PostService {
 
     @Autowired
     private GroupMemberRepository groupMemberRepository;
+
+    @Autowired
+    private org.example.connectcg_be.service.NotificationService notificationService;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
@@ -142,6 +140,7 @@ public class PostServiceImpl implements PostService {
             return item;
         }).toList();
         dto.setMedia(mediaDto);
+        dto.setAuthorViolationCount(post.getAuthor().getViolationCount());
         List<String> images = mediaList.stream()
                 .sorted(Comparator
                         .comparing(pm -> pm.getDisplayOrder() == null ? Integer.MAX_VALUE : pm.getDisplayOrder()))
@@ -151,6 +150,8 @@ public class PostServiceImpl implements PostService {
 
         // Moderation fields
         dto.setAiStatus(post.getAiStatus());
+        dto.setAiScore(post.getAiScore());
+        dto.setAiReason(post.getAiReason());
         dto.setVisibility(post.getVisibility());
 
         if (post.getApprovedBy() != null) {
@@ -162,8 +163,8 @@ public class PostServiceImpl implements PostService {
             }
         }
         if (currentUserId != null) {
-            org.example.connectcg_be.entity.ReactionId reactionId =
-                    new org.example.connectcg_be.entity.ReactionId(currentUserId, post.getId());
+            org.example.connectcg_be.entity.ReactionId reactionId = new org.example.connectcg_be.entity.ReactionId(
+                    currentUserId, post.getId());
 
             reactionRepository.findById(reactionId).ifPresent(reaction -> {
                 dto.setCurrentUserReaction(reaction.getType());
@@ -212,57 +213,147 @@ public class PostServiceImpl implements PostService {
         postRepository.save(post);
 
         // Send Notification
-        Notification notification = new Notification();
-        notification.setUser(post.getAuthor());
-        notification.setActor(admin);
-        notification.setType("OTHER"); // Changed from POST_APPROVED to bypass DB check constraint
-        notification.setTargetType("POST");
-        notification.setTargetId(post.getId());
-        notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
-        if (post.getGroup() != null) {
-            notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã được phê duyệt.");
-        } else {
-            notification.setContent("Bài viết của bạn trên trang chủ đã được phê duyệt.");
-        }
-        notificationRepository.save(notification);
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent("Bài viết của bạn đã được phê duyệt.");
+        dto.setType("POST_APPROVED");
+        dto.setTargetType("POST");
+        dto.setTargetId(postId);
+        notificationService.sendNotification(dto, post.getAuthor(), admin);
+
+        // Broadcast realtime
+        GroupPostDTO postDTO = convertToDTO(post, adminId);
+        PostEventDTO event = new PostEventDTO("CREATED", postDTO, post.getId());
+        messagingTemplate.convertAndSend("/topic/posts", event);
     }
 
     @Override
     @Transactional
-    public void rejectPost(Integer postId, Integer adminId) {
+    public void rejectPost(Integer postId, Integer adminId, Boolean manualStrike) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
-        // Send Notification BEFORE deletion to ensure IDs are valid in memory
         User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-        Notification notification = new Notification();
-        notification.setUser(post.getAuthor());
-        notification.setActor(admin);
-        notification.setType("OTHER");
+        User author = post.getAuthor();
+        boolean shouldStrike = Boolean.TRUE.equals(manualStrike) || "TOXIC".equals(post.getAiStatus());
+
+        final java.util.concurrent.atomic.AtomicInteger groupStrikesCount = new java.util.concurrent.atomic.AtomicInteger(
+                0);
+        final java.util.concurrent.atomic.AtomicBoolean isGroupBanned = new java.util.concurrent.atomic.AtomicBoolean(
+                false);
+        final java.util.concurrent.atomic.AtomicInteger globalStrikesCount = new java.util.concurrent.atomic.AtomicInteger(
+                0);
+        final java.util.concurrent.atomic.AtomicBoolean isGlobalLocked = new java.util.concurrent.atomic.AtomicBoolean(
+                false);
+        final java.util.concurrent.atomic.AtomicBoolean isGlobalPermBanned = new java.util.concurrent.atomic.AtomicBoolean(
+                false);
+
+        if (shouldStrike) {
+            // 1. Group-level strike (if applicable)
+            if (post.getGroup() != null) {
+                GroupMemberId memberId = new GroupMemberId(post.getGroup().getId(), author.getId());
+                groupMemberRepository.findById(memberId).ifPresent(member -> {
+                    int currentStrikes = member.getViolationCount() != null ? member.getViolationCount() : 0;
+                    int newStrikes = currentStrikes + 1;
+                    member.setViolationCount(newStrikes);
+                    member.setLastViolationAt(Instant.now());
+
+                    if (newStrikes >= 3) {
+                        member.setStatus("BANNED");
+                        isGroupBanned.set(true);
+
+                        // Broadcast membership update
+                        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                                "BANNED", post.getGroup().getId(), author.getId(), null);
+                        messagingTemplate.convertAndSend("/topic/groups/membership", event);
+                    }
+                    groupMemberRepository.save(member);
+                    groupStrikesCount.set(newStrikes);
+                });
+            }
+
+            // 2. Global-level strike
+            int currentGlobalStrikes = author.getViolationCount() != null ? author.getViolationCount() : 0;
+            int newGlobalStrikes = currentGlobalStrikes + 1;
+            author.setViolationCount(newGlobalStrikes);
+            author.setLastViolationAt(Instant.now());
+
+            if (newGlobalStrikes == 5) {
+                author.setLockedUntil(Instant.now().plus(3, java.time.temporal.ChronoUnit.DAYS));
+                author.setIsLocked(true);
+                isGlobalLocked.set(true);
+            } else if (newGlobalStrikes >= 8) {
+                author.setPermanentLocked(true);
+                author.setIsLocked(true);
+                isGlobalPermBanned.set(true);
+            }
+            userRepository.save(author);
+            globalStrikesCount.set(newGlobalStrikes);
+        }
+
+        // Send Notification
+        TungNotificationDTO dto = new TungNotificationDTO();
+
+        String strikeReason = Boolean.TRUE.equals(manualStrike) ? "do vi phạm tiêu chuẩn (Admin xác nhận)"
+                : "do bị phát hiện nội dung độc hại (AI/Admin xác nhận)";
 
         if (post.getGroup() != null) {
-            notification.setTargetType("GROUP");
-            notification.setTargetId(post.getGroup().getId());
-            notification.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối.");
+            dto.setTargetType("GROUP");
+            dto.setTargetId(post.getGroup().getId());
+
+            String groupMsg = isGroupBanned.get()
+                    ? " Bạn đã bị cấm khỏi nhóm " + post.getGroup().getName() + " do vi phạm " + groupStrikesCount.get()
+                            + "/3."
+                    : (shouldStrike ? " (Vi phạm " + groupStrikesCount.get() + "/3)" : "");
+
+            dto.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối " + strikeReason
+                    + groupMsg);
+            dto.setType(isGroupBanned.get() ? "GROUP_BANNED" : (shouldStrike ? "AI_STRIKE_WARNING" : "POST_REJECTED"));
         } else {
-            notification.setTargetType("USER");
-            notification.setTargetId(post.getAuthor().getId());
-            notification.setContent("Bài viết của bạn trên trang chủ đã bị từ chối và gỡ bỏ.");
+            dto.setTargetType("USER");
+            dto.setTargetId(author.getId());
+
+            String globalMsg = "";
+            if (isGlobalPermBanned.get())
+                globalMsg = " Tài khoản của bạn đã bị khóa vĩnh viễn do vi phạm " + globalStrikesCount.get() + " lần.";
+            else if (isGlobalLocked.get())
+                globalMsg = " Tài khoản của bạn đã bị khóa tạm thời 3 ngày do vi phạm " + globalStrikesCount.get()
+                        + "/5.";
+            else if (shouldStrike)
+                globalMsg = " (Vi phạm hệ thống: " + globalStrikesCount.get() + " gậy).";
+
+            dto.setContent("Bài viết của bạn trên trang chủ đã bị gỡ bỏ " + strikeReason + globalMsg);
+            dto.setType(isGlobalPermBanned.get() || isGlobalLocked.get() ? "AI_STRIKE_BANNED" : "POST_REJECTED");
         }
-        notificationRepository.save(notification);
+
+        notificationService.sendNotification(dto, author, admin);
+
+        // Broadcast realtime
+        PostEventDTO event = new PostEventDTO("DELETED", null, post.getId());
+        messagingTemplate.convertAndSend("/topic/posts", event);
+
+        // Broadcast user update if strikes were changed
+        if (Boolean.TRUE.equals(manualStrike)) {
+            UserEventDTO userEvent = new UserEventDTO(
+                    "UPDATED",
+                    author.getId(),
+                    author.getViolationCount(),
+                    author.getLockedUntil(),
+                    author.getPermanentLocked(),
+                    author.getIsLocked());
+            messagingTemplate.convertAndSend("/topic/users", userEvent);
+        }
 
         // Hard delete the post record
         postRepository.delete(post);
-        postRepository.flush(); // Force sync to DB to catch any 500 errors here
+        postRepository.flush();
     }
 
     @Override
     @Transactional
     public Post createPost(CreatePostRequest request, boolean skipAiCheck,
-                           Integer userId) {
+            Integer userId) {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -297,25 +388,58 @@ public class PostServiceImpl implements PostService {
             post.setGroup(group);
         }
 
-        // AI Moderation Logic
+        // AI Moderation Logic with Privacy-based thresholds
         if (skipAiCheck) {
-            // Skip AI check - approve directly
             post.setStatus("APPROVED");
             post.setAiStatus("NOT_CHECKED");
+            post.setAiScore(0.0);
         } else {
-            // Check with Gemini AI
-            String aiResult = geminiService.checkPostContent(request.getContent());
+            AiModerationResult aiResult = geminiService.checkPostContent(request.getContent());
             post.setCheckedAt(Instant.now());
+            post.setAiStatus(aiResult.getLabel());
+            post.setAiScore(aiResult.getScore());
+            post.setAiReason(aiResult.getReason());
 
-            if ("SAFE".equals(aiResult)) {
-                post.setStatus("APPROVED");
-                post.setAiStatus("SAFE");
+            boolean needsModeration = false;
+
+            if (post.getGroup() != null) {
+                // Group post: Apply privacy-based logic
+                String privacy = post.getGroup().getPrivacy();
+
+                if ("PUBLIC".equals(privacy)) {
+                    // PUBLIC: Strict threshold (score > 0.4)
+                    if (aiResult.getScore() > 0.4) {
+                        needsModeration = true;
+                    }
+
+                    // Check if member is new (joined within 3 days)
+                    GroupMemberId memberId = new GroupMemberId(post.getGroup().getId(), userId);
+                    Optional<GroupMember> memberOpt = groupMemberRepository.findById(memberId);
+                    if (memberOpt.isPresent() && memberOpt.get().getJoinedAt() != null) {
+                        long daysSinceJoined = java.time.Duration.between(
+                                memberOpt.get().getJoinedAt(), Instant.now()).toDays();
+                        if (daysSinceJoined < 3) {
+                            // New member in PUBLIC group: Always moderate
+                            needsModeration = true;
+                            post.setAiReason(
+                                    (post.getAiReason() != null ? post.getAiReason() + " | " : "") +
+                                            "Thành viên mới (< 3 ngày) - Cần kiểm duyệt");
+                        }
+                    }
+                } else {
+                    // PRIVATE: Relaxed threshold (score > 0.7)
+                    if (aiResult.getScore() > 0.7) {
+                        needsModeration = true;
+                    }
+                }
             } else {
-                post.setStatus("PENDING");
-                post.setAiStatus(aiResult); // TOXIC or NOT_CHECKED
-                post.setAiReason(
-                        "SAFE".equals(aiResult) ? null : "Content requires manual review (Flagged or AI Error)");
+                // Homepage post: Use strict threshold like PUBLIC
+                if (aiResult.getScore() > 0.4) {
+                    needsModeration = true;
+                }
             }
+
+            post.setStatus(needsModeration ? "PENDING" : "APPROVED");
         }
 
         Post savedPost = postRepository.save(post);
@@ -324,6 +448,14 @@ public class PostServiceImpl implements PostService {
             GroupPostDTO dto = convertToDTO(savedPost, null);
             PostEventDTO event = new PostEventDTO("CREATED", dto, savedPost.getId());
             messagingTemplate.convertAndSend("/topic/posts", event);
+        } else if ("PENDING".equals(savedPost.getStatus())) {
+            // Notify author about pending status
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent("Bài viết của bạn đang chờ kiểm duyệt do nội dung nhạy cảm theo đánh giá của AI.");
+            dto.setType("POST_PENDING");
+            dto.setTargetType("POST");
+            dto.setTargetId(savedPost.getId());
+            notificationService.sendNotification(dto, author);
         }
         return savedPost;
     }
@@ -347,32 +479,40 @@ public class PostServiceImpl implements PostService {
 
         if (contentChanged) {
             // Re-trigger AI Moderation on new content
-            String aiResult = geminiService.checkPostContent(request.getContent());
+            AiModerationResult aiResult = geminiService.checkPostContent(request.getContent());
             post.setCheckedAt(Instant.now());
-            post.setAiStatus(aiResult);
+            post.setAiStatus(aiResult.getLabel());
+            post.setAiScore(aiResult.getScore());
+            post.setAiReason(aiResult.getReason());
 
             // Critical: Reset approver because content is brand new
             post.setApprovedBy(null);
 
-            if ("SAFE".equals(aiResult)) {
+            if ("SAFE".equals(aiResult.getLabel())) {
                 post.setStatus("APPROVED");
             } else {
-                // If TOXIC or error occurs, move to PENDING to hide from newsfeed
                 post.setStatus("PENDING");
-                post.setAiReason("Nội dung đã được thay đổi và cần kiểm duyệt lại");
             }
         }
 
         Post savedPost = postRepository.save(post);
         attachMediaToPost(savedPost, request.getMediaUrls(), savedPost.getAuthor());
+
         if ("APPROVED".equals(savedPost.getStatus())) {
             GroupPostDTO dto = convertToDTO(savedPost, null);
             PostEventDTO event = new PostEventDTO("UPDATED", dto, savedPost.getId());
             messagingTemplate.convertAndSend("/topic/posts", event);
+        } else if ("PENDING".equals(savedPost.getStatus())) {
+            // Notify author about pending status
+            TungNotificationDTO dto = new TungNotificationDTO();
+            dto.setContent("Bài viết (chỉnh sửa) của bạn đang chờ kiểm duyệt lại.");
+            dto.setType("POST_PENDING");
+            dto.setTargetType("POST");
+            dto.setTargetId(savedPost.getId());
+            notificationService.sendNotification(dto, savedPost.getAuthor());
         }
         return savedPost;
     }
-
 
     @Transactional
     @Override

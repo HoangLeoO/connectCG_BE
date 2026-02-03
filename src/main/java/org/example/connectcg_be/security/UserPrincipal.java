@@ -27,8 +27,8 @@ public class UserPrincipal implements UserDetails {
     private Collection<? extends GrantedAuthority> authorities;
 
     public UserPrincipal(Integer id, String username, String email, String password, boolean isEnabled,
-                         boolean isLocked, boolean isDeleted,
-                         Collection<? extends GrantedAuthority> authorities) {
+            boolean isLocked, boolean isDeleted,
+            Collection<? extends GrantedAuthority> authorities) {
         this.id = id;
         this.username = username;
         this.email = email;
@@ -45,13 +45,21 @@ public class UserPrincipal implements UserDetails {
         List<GrantedAuthority> authorities = Collections.singletonList(
                 new SimpleGrantedAuthority("ROLE_" + user.getRole()));
 
+        boolean actuallyLocked = Boolean.TRUE.equals(user.getPermanentLocked());
+        if (!actuallyLocked && Boolean.TRUE.equals(user.getIsLocked())) {
+            // Check if temporary lock has expired
+            if (user.getLockedUntil() == null || java.time.Instant.now().isBefore(user.getLockedUntil())) {
+                actuallyLocked = true;
+            }
+        }
+
         return new UserPrincipal(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getPasswordHash(),
                 Boolean.TRUE.equals(user.getIsEnabled()),
-                Boolean.TRUE.equals(user.getIsLocked()),
+                actuallyLocked,
                 Boolean.TRUE.equals(user.getIsDeleted()),
                 authorities);
     }

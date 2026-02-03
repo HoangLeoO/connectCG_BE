@@ -53,6 +53,25 @@ public class Comment {
     @Column(name = "is_deleted")
     private Boolean isDeleted;
 
+    @Column(name = "status", length = 20)
+    private String status; // APPROVED, PENDING, REJECTED
+
+    @Column(name = "ai_status", length = 50)
+    private String aiStatus;
+
+    @Column(name = "ai_score")
+    private Double aiScore;
+
+    @Column(name = "ai_reason", columnDefinition = "TEXT")
+    private String aiReason;
+
+    @Column(name = "checked_at")
+    private Instant checkedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy;
+
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "created_at")
     private Instant createdAt;

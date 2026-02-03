@@ -60,6 +60,19 @@ public class GroupSecurity {
         return member.isPresent() && "ACCEPTED".equals(member.get().getStatus());
     }
 
+    public boolean isGroupBanned(Integer groupId) {
+        UserPrincipal userPrincipal = getCurrentUser();
+        if (userPrincipal == null)
+            return false;
+
+        GroupMemberId memberId = new GroupMemberId();
+        memberId.setGroupId(groupId);
+        memberId.setUserId(userPrincipal.getId());
+
+        Optional<GroupMember> member = groupMemberRepository.findById(memberId);
+        return member.isPresent() && "BANNED".equals(member.get().getStatus());
+    }
+
     public boolean isPublicGroup(Integer groupId) {
         return groupRepository.findById(groupId)
                 .map(g -> "PUBLIC".equals(g.getPrivacy()))
