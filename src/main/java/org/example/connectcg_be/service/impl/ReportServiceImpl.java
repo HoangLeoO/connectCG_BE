@@ -31,7 +31,6 @@ public class ReportServiceImpl implements ReportService {
         this.notificationService = notificationService;
     }
 
-
     @Override
     public List<ReportResponse> getAllReports() {
         return reportRepository.findAll().stream().map(this::mapToDto).toList();
@@ -72,7 +71,6 @@ public class ReportServiceImpl implements ReportService {
         return dto;
     }
 
-
     @Override
     public Report getReportById(Integer id) {
         return reportRepository.findById(id)
@@ -81,37 +79,85 @@ public class ReportServiceImpl implements ReportService {
 
     @Override
     public void createReport(ReportRequest request, String username) {
-        // 2. Tìm người dùng đang báo cáo
+        // Tìm người dùng đang báo cáo
         User reporter = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found: " + username));
 
         Report report = new Report();
         report.setReason(request.getReason());
-
-        // Đảm bảo targetType viết hoa để khớp với Check Constraint trong DB (USER, GROUP, POST)
         report.setTargetType(request.getTargetType().toUpperCase());
-
         report.setTargetId(request.getTargetId());
         report.setStatus("PENDING");
-
-        // 3. Quan trọng: Gán người báo cáo vào
         report.setReporter(reporter);
         report.setCreatedAt(Instant.now());
-        reportRepository.save(report);
+        Report savedReport = reportRepository.save(report);
+
+        // Send WebSocket notification to all admins
+        List<User> admins = userRepository.findByRole("ADMIN");
+        for (User admin : admins) {
+            org.example.connectcg_be.dto.TungNotificationDTO dto = new org.example.connectcg_be.dto.TungNotificationDTO();
+            dto.setType("REPORT_SUBMITTED");
+            dto.setContent("Có báo cáo mới từ người dùng về " + request.getTargetType().toLowerCase());
+            dto.setTargetType("REPORT");
+            dto.setTargetId(savedReport.getId());
+            notificationService.sendNotification(dto, admin, reporter);
+        }
     }
 
     @Override
     public void updateReport(Integer id, ReportAdminUpdateRequest request, String adminUsername) {
         Report report = getReportById(id);
+        String oldStatus = report.getStatus();
         report.setStatus(request.getStatus());
 
+        User admin = null;
         // Nếu chuyển trạng thái khác PENDING, lưu vết người duyệt
         if (!"PENDING".equalsIgnoreCase(request.getStatus())) {
-            User admin = userRepository.findByUsername(adminUsername)
+            admin = userRepository.findByUsername(adminUsername)
                     .orElseThrow(() -> new RuntimeException("Admin not found"));
             report.setReviewer(admin);
         }
 
         reportRepository.save(report);
+
+        // Send WebSocket notification to reporter about status change
+        if (!oldStatus.equalsIgnoreCase(request.getStatus()) && report.getReporter() != null) {
+            String statusText = "RESOLVED".equalsIgnoreCase(request.getStatus())
+                    ? "đã được xử lý"
+                    : "đang được xem xét";
+
+            org.example.connectcg_be.dto.TungNotificationDTO dto = new org.example.connectcg_be.dto.TungNotificationDTO();
+            dto.setType("REPORT_UPDATED");
+            dto.setContent("Báo cáo của bạn " + statusText);
+            dto.setTargetType("REPORT");
+            dto.setTargetId(report.getId());
+            notificationService.sendNotification(dto, report.getReporter(), admin);
+        }
+    }
+
+    // Paginated methods
+    @Override
+    public org.springframework.data.domain.Page<ReportResponse> getReportsPaginated(
+            org.springframework.data.domain.Pageable pageable) {
+        return reportRepository.findAll(pageable).map(this::mapToDto);
+    }
+
+    @Override
+    public org.springframework.data.domain.Page<ReportResponse> getReportsByStatusPaginated(String status,
+            org.springframework.data.domain.Pageable pageable) {
+        return reportRepository.findByStatus(status.toUpperCase(), pageable).map(this::mapToDto);
+    }
+
+    @Override
+    public org.springframework.data.domain.Page<ReportResponse> getReportsByTargetTypePaginated(String targetType,
+            org.springframework.data.domain.Pageable pageable) {
+        return reportRepository.findByTargetType(targetType.toUpperCase(), pageable).map(this::mapToDto);
+    }
+
+    @Override
+    public org.springframework.data.domain.Page<ReportResponse> getReportsByTargetTypeAndStatusPaginated(
+            String targetType, String status, org.springframework.data.domain.Pageable pageable) {
+        return reportRepository.findByTargetTypeAndStatus(targetType.toUpperCase(), status.toUpperCase(), pageable)
+                .map(this::mapToDto);
     }
 }

@@ -1,5 +1,6 @@
 package org.example.connectcg_be.service;
 
+import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.GroupPostDTO;
 import java.util.List;
 
@@ -25,6 +26,9 @@ public interface PostService {
 
     org.example.connectcg_be.entity.Post createPost(org.example.connectcg_be.dto.CreatePostRequest request,
             boolean skipAiCheck, Integer userId);
+
+    @Transactional
+    void deletePost(Integer postId, Integer userId);
 
     List<org.example.connectcg_be.entity.Post> getHomepagePostsByStatus(String status);
 }

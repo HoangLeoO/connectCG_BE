@@ -1,6 +1,7 @@
 package org.example.connectcg_be.service.impl;
 
 import jakarta.transaction.Transactional;
+import org.example.connectcg_be.dto.ReactionEventDTO;
 import org.example.connectcg_be.entity.Post;
 import org.example.connectcg_be.entity.Reaction;
 import org.example.connectcg_be.entity.ReactionId;
@@ -23,6 +24,8 @@ public class ReactionServiceImpl implements ReactionService {
     private PostRepository postRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -53,6 +56,14 @@ public class ReactionServiceImpl implements ReactionService {
             post.setReactCount((post.getReactCount() != null ? post.getReactCount() : 0) + 1);
             postRepository.save(post);
         }
+
+        // Broadcast realtime
+        Post updatedPost = postRepository.findById(postId).orElse(null);
+        int newCount = updatedPost != null && updatedPost.getReactCount() != null
+                ? updatedPost.getReactCount()
+                : 0;
+        ReactionEventDTO event = new ReactionEventDTO("REACTED", postId, userId, type, newCount);
+        messagingTemplate.convertAndSend("/topic/reactions", event);
     }
 
     @Override
@@ -68,6 +79,14 @@ public class ReactionServiceImpl implements ReactionService {
                 post.setReactCount(post.getReactCount() - 1);
                 postRepository.save(post);
             }
+
+            // Broadcast realtime
+            Post updatedPost = postRepository.findById(postId).orElse(null);
+            int newCount = updatedPost != null && updatedPost.getReactCount() != null
+                    ? updatedPost.getReactCount()
+                    : 0;
+            ReactionEventDTO event = new ReactionEventDTO("UNREACTED", postId, userId, null, newCount);
+            messagingTemplate.convertAndSend("/topic/reactions", event);
         }
     }
 }

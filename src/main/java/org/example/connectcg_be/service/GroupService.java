@@ -52,4 +52,5 @@ public interface GroupService {
     void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId);
 
     void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId);
+    void recoverGroup(Integer groupId);
 }

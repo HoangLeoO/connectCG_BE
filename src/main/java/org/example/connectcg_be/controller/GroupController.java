@@ -288,4 +288,9 @@ public class GroupController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    @PostMapping("/{id}/recover")
+    public ResponseEntity<?> recoverGroup(@PathVariable Integer id) {
+        groupService.recoverGroup(id);
+        return ResponseEntity.ok("Khôi phục nhóm thành công");
+    }
 }

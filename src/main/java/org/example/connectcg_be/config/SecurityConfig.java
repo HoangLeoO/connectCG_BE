@@ -73,12 +73,11 @@ public class SecurityConfig {
                         .anyRequest().authenticated() // CÃ²n láº¡i pháº£i Ä‘Äƒng nháº­p
                 ).oauth2Login(oauth2 -> oauth2
                         .userInfoEndpoint(userInfo -> userInfo
-                                .userService(customOAuth2UserService)
-                        )
-                        .successHandler(oAuth2LoginSuccessHandler)
-                )
+                                .userService(customOAuth2UserService))
+                        .successHandler(oAuth2LoginSuccessHandler))
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .sessionManagement(sess -> sess
-                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

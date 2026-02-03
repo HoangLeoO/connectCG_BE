@@ -2,6 +2,7 @@ package org.example.connectcg_be.service.impl;
 
 import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.CommentDTO;
+import org.example.connectcg_be.dto.CommentEventDTO;
 import org.example.connectcg_be.dto.CreateCommentRequest;
 import org.example.connectcg_be.entity.Comment;
 import org.example.connectcg_be.entity.Post;
@@ -34,7 +35,8 @@ public class CommentServiceImpl implements CommentService {
 
     @Autowired
     private UserAvatarRepository userAvatarRepository;
-
+    @Autowired
+    private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
     private CommentDTO convertToDTO(Comment comment) {
         CommentDTO dto = new CommentDTO();
@@ -78,14 +80,14 @@ public class CommentServiceImpl implements CommentService {
                 .findByPostIdAndIsDeletedFalseOrderByCreatedAtAsc(postId);
         Map<Integer, CommentDTO> dtoMap = new HashMap<>();
         List<CommentDTO> rootComments = new ArrayList<>();
-        //convert toan bo comment sang dto
+        // convert toan bo comment sang dto
         for (Comment c : allComments) {
             CommentDTO dto = convertToDTO(c);
             dtoMap.put(c.getId(), dto);
         }
-        //bat dau build tree comment
+        // bat dau build tree comment
         for (Comment c : allComments) {
-            CommentDTO dto = dtoMap.get(c.getId()); //lay tung comment
+            CommentDTO dto = dtoMap.get(c.getId()); // lay tung comment
 
             if (c.getParent() == null) { // null => comment cha, cap 1
                 // Comment gốc (cấp 1)
@@ -136,7 +138,12 @@ public class CommentServiceImpl implements CommentService {
         post.setCommentCount(post.getCommentCount() + 1);
         postRepository.save(post);
 
-        return convertToDTO(saved);
+        // Broadcast realtime
+        CommentDTO dto = convertToDTO(saved);
+        CommentEventDTO event = new CommentEventDTO("CREATED", postId, dto, saved.getId(), post.getCommentCount());
+        messagingTemplate.convertAndSend("/topic/comments", event);
+
+        return dto;
     }
 
     @Override
@@ -156,6 +163,10 @@ public class CommentServiceImpl implements CommentService {
         Post post = comment.getPost();
         post.setCommentCount(Math.max(0, post.getCommentCount() - 1));
         postRepository.save(post);
+
+        // Broadcast realtime
+        CommentEventDTO event = new CommentEventDTO("DELETED", post.getId(), null, commentId, post.getCommentCount());
+        messagingTemplate.convertAndSend("/topic/comments", event);
     }
 
 }

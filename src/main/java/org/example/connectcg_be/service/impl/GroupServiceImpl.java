@@ -248,26 +248,34 @@ public class GroupServiceImpl implements GroupService {
     public void deleteGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
-
         User requester = userService.findByIdUser(userId);
-        // Cho phép xóa nếu là Owner hoặc Admin hệ thống
+        // --- 1. Kiểm tra quyền ---
         boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(userId);
         boolean isSystemAdmin = requester != null && "ADMIN".equals(requester.getRole());
         if (!isOwner && !isSystemAdmin) {
             throw new RuntimeException("Chỉ chủ nhóm hoặc admin hệ thống mới có quyền xóa nhóm");
         }
-
+        // --- 2. Xác định nội dung thông báo ---
+        String notificationContent;
+        if (isOwner) {
+            notificationContent = "Nhóm '" + group.getName() + "' đã bị giải tán bởi Quản trị viên nhóm.";
+        } else {
+            notificationContent = "Nhóm '" + group.getName() + "' đã bị xóa do vi phạm Tiêu chuẩn cộng đồng.";
+        }
+        // --- 3. Đánh dấu xóa ---
         group.setIsDeleted(true);
         groupRepository.save(group);
-        User owner = group.getOwner();
-        if (owner != null) {
+        // --- 4. Gửi thông báo cho TẤT CẢ thành viên ---
+        List<GroupMember> members = groupMemberRepository.findAllByIdGroupIdAndStatus(groupId, "ACCEPTED");
+        for (GroupMember member : members) {
             TungNotificationDTO noti = new TungNotificationDTO();
-            noti.setContent("Nhóm '" + group.getName() + "' của bạn đã bị xóa do vi phạm quy tắc cộng đồng.");
+            // Nội dung theo ngữ cảnh
+            noti.setContent(notificationContent);
             noti.setType("GROUP_DELETED");
             noti.setTargetType("GROUP");
             noti.setTargetId(groupId);
-
-            notificationService.sendNotification(noti, owner);
+            // Gửi cho từng member
+            notificationService.sendNotification(noti, member.getUser());
         }
     }
 
@@ -746,5 +754,17 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
         notificationService.sendNotification(dto, target.getUser(), actor.getUser());
+    }
+    @Override
+    @Transactional
+    public void recoverGroup(Integer groupId) {
+        // Sử dụng findById gốc để tìm cả nhóm đã xóa (deleted = true)
+        Group group = groupRepository.findById(groupId)
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
+        // Chỉ khôi phục nếu đang bị xóa
+        if (group.getIsDeleted()) {
+            group.setIsDeleted(false);
+            groupRepository.save(group);
+        }
     }
 }
