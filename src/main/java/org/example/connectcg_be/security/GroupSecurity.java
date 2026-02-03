@@ -52,6 +52,12 @@ public class GroupSecurity {
         if (userPrincipal == null)
             return false;
 
+        // Owner is always considered a member
+        Optional<Group> group = groupRepository.findById(groupId);
+        if (group.isPresent() && userPrincipal.getId().equals(group.get().getOwner().getId())) {
+            return true;
+        }
+
         GroupMemberId memberId = new GroupMemberId();
         memberId.setGroupId(groupId);
         memberId.setUserId(userPrincipal.getId());
