@@ -3,14 +3,17 @@ package org.example.connectcg_be.service.impl;
 import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.TungNotificationDTO;
 import org.example.connectcg_be.entity.Notification;
+import org.example.connectcg_be.entity.User;
 import org.example.connectcg_be.entity.UserAvatar;
 import org.example.connectcg_be.repository.NotificationRepository;
 import org.example.connectcg_be.repository.UserAvatarRepository;
+import org.example.connectcg_be.repository.UserProfileRepository;
 import org.example.connectcg_be.service.NotificationService;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,7 +23,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserAvatarRepository userAvatarRepository;
-    private final org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
+    private final UserProfileRepository userProfileRepository;
     private final SimpMessagingTemplate messagingTemplate; // 1. Inject cái này
 
     @Override
@@ -49,14 +52,14 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Transactional
     @Override
-    public void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver) {
+    public void sendNotification(TungNotificationDTO dto, User receiver) {
         sendNotification(dto, receiver, null);
     }
 
     @Transactional
     @Override
-    public void sendNotification(TungNotificationDTO dto, org.example.connectcg_be.entity.User receiver,
-            org.example.connectcg_be.entity.User actor) {
+    public void sendNotification(TungNotificationDTO dto, User receiver,
+            User actor) {
         Notification entity = new Notification();
         entity.setUser(receiver);
         entity.setActor(actor);
@@ -93,6 +96,21 @@ public class NotificationServiceImpl implements NotificationService {
 
         messagingTemplate.convertAndSendToUser(
                 receiver.getUsername(),
+                "/queue/notifications",
+                dto);
+    }
+
+    @Override
+    @Transactional
+    public void sendNotification(Notification notification) {
+        notification.setCreatedAt(Instant.now());
+        Notification saved = notificationRepository.save(notification);
+
+        // Convert to DTO with actor info for frontend
+        TungNotificationDTO dto = mapToDTO(saved);
+
+        messagingTemplate.convertAndSendToUser(
+                saved.getUser().getUsername(),
                 "/queue/notifications",
                 dto);
     }

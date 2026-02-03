@@ -69,10 +69,10 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
         log.info("Calculating suggestions for user: {}", userId);
         
         try {
-            // Bước 1: Xóa suggestions cũ của user này
+
             jdbcTemplate.update("DELETE FROM friend_suggestions WHERE user_id = ?", userId);
             
-            // Bước 2: Tính toán và INSERT suggestions mới
+
             String sql = """
                 INSERT INTO friend_suggestions (user_id, suggested_user_id, score, reason, expires_at, created_at)
                 WITH MutualFriends AS (
