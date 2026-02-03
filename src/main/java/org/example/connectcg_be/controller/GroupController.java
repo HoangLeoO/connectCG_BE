@@ -241,13 +241,13 @@ public class GroupController {
         return groupService.getPendingJoinRequests(id, userPrincipal.getId());
     }
 
-    @DeleteMapping("/{id}/kick/{userId}")
+    @PostMapping("/{id}/ban/{userId}")
     @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
-    public ResponseEntity<String> kickMember(@PathVariable("id") Integer id, @PathVariable("userId") Integer userId,
+    public ResponseEntity<String> banMember(@PathVariable("id") Integer id, @PathVariable("userId") Integer userId,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
-            groupService.kickMember(id, userId, userPrincipal.getId());
+            groupService.banMember(id, userId, userPrincipal.getId());
             return ResponseEntity.ok().build();
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
