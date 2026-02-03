@@ -40,18 +40,19 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
     public Page<FriendSuggestionDTO> getSuggestions(Integer userId, Pageable pageable) {
         log.info("Fetching suggestions for user: {}", userId);
         
-        // Check if cache exists and is valid
+        // 1. Kiểm tra xem đã có cache gợi ý hợp lệ chưa (còn hạn sử dụng)
         boolean hasValidCache = friendSuggestionRepository.existsByUserIdAndExpiresAtAfter(userId, Instant.now());
         
+        // 2. Nếu chưa có hoặc cache hết hạn -> Tính toán lại gợi ý mới
         if (!hasValidCache) {
             log.info("No valid cache found, calculating new suggestions for user: {}", userId);
             calculateSuggestions(userId);
         }
         
-        // Fetch suggestions from database
+        // 3. Lấy danh sách gợi ý từ Database
         Page<FriendSuggestion> suggestions = friendSuggestionRepository.findActiveByUserId(userId, Instant.now(), pageable);
         
-        // Convert to DTO
+        // 4. Chuyển đổi sang DTO để trả về Frontend
         List<FriendSuggestionDTO> dtos = new ArrayList<>();
         for (FriendSuggestion suggestion : suggestions.getContent()) {
             FriendSuggestionDTO dto = mapToDTO(suggestion);
@@ -69,16 +70,20 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
         log.info("Calculating suggestions for user: {}", userId);
         
         try {
-            // Bước 1: Xóa suggestions cũ của user này
+            // 1. Xóa các gợi ý cũ của user này để tính lại từ đầu
             jdbcTemplate.update("DELETE FROM friend_suggestions WHERE user_id = ?", userId);
             
-            // Bước 2: Tính toán và INSERT suggestions mới
+
+            // 2. Thuật toán tính điểm và tìm gợi ý
+            // CTE (Common Table Expressions) giúp code SQL dễ đọc hơn
             String sql = """
                 INSERT INTO friend_suggestions (user_id, suggested_user_id, score, reason, expires_at, created_at)
                 WITH MutualFriends AS (
+                    -- Chiến lược 1: Tìm qua Bạn chung (Mutual Friends)
+                    -- A là bạn B, B là bạn C -> Gợi ý C cho A
                     SELECT 
-                        f2.friend_id AS candidate_id,
-                        COUNT(f2.friend_id) * 10 AS score,
+                        f2.friend_id AS candidate_id, -- Người được gợi ý (C)
+                        COUNT(f2.friend_id) * 10 AS score, -- Mỗi bạn chung = 10 điểm
                         CONCAT(COUNT(f2.friend_id), ' bạn chung') AS reason_detail
                     FROM friends f1
                     JOIN friends f2 ON f1.friend_id = f2.user_id
@@ -106,9 +111,10 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
                 ),
                 
                 SameCity AS (
+                    -- Chiến lược 2: Tìm người Cùng thành phố
                     SELECT 
                         u.id AS candidate_id,
-                        5 AS score,
+                        5 AS score, -- Cùng thành phố = 5 điểm
                         CONCAT('Cùng sống tại ', up.city_name) AS reason_detail
                     FROM users u
                     JOIN user_profiles up ON u.id = up.user_id
@@ -135,7 +141,38 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
                       )
                 ),
                 
+                SameHobby AS (
+                    SELECT
+                        uh2.user_id AS candidate_id,
+                        COUNT(uh2.hobby_id) * 7 AS score,
+                        CONCAT(COUNT(uh2.hobby_id), ' sở thích chung') AS reason_detail
+                    FROM user_hobbies uh1
+                    JOIN user_hobbies uh2 ON uh1.hobby_id = uh2.hobby_id
+                    JOIN users u ON u.id = uh2.user_id
+                    WHERE uh1.user_id = ?
+                      AND uh2.user_id != ?
+                      AND u.is_deleted = FALSE
+                      AND u.is_locked = FALSE
+                      AND uh2.user_id NOT IN (
+                          SELECT friend_id FROM friends WHERE user_id = ?
+                      )
+                      AND uh2.user_id NOT IN (
+                          SELECT sender_id FROM friend_requests 
+                          WHERE receiver_id = ? AND status = 'PENDING'
+                          UNION
+                          SELECT receiver_id FROM friend_requests 
+                          WHERE sender_id = ? AND status = 'PENDING'
+                      )
+                      AND uh2.user_id NOT IN (
+                          SELECT dismissed_user_id FROM dismissed_suggestions 
+                          WHERE user_id = ?
+                      )
+                    GROUP BY uh2.user_id
+                    HAVING COUNT(uh2.hobby_id) >= 1
+                ),
+
                 FinalCandidates AS (
+                    -- Tổng hợp kết quả từ các chiến lược
                     SELECT 
                         candidate_id,
                         SUM(score) AS total_score,
@@ -144,6 +181,8 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
                         SELECT * FROM MutualFriends
                         UNION ALL
                         SELECT * FROM SameCity
+                        UNION ALL
+                        SELECT * FROM SameHobby
                     ) AS AllSources
                     GROUP BY candidate_id
                     HAVING total_score >= 5
@@ -160,12 +199,15 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
                 LIMIT 10
                 """;
             
-            // Execute với 13 parameters (userId được dùng nhiều lần)
+            // Execute với 19 parameters (userId được dùng nhiều lần)
             int rowsAffected = jdbcTemplate.update(sql, 
                 userId, userId, userId,  // MutualFriends
                 userId, userId, userId,  // MutualFriends filters
                 userId, userId, userId,  // SameCity
                 userId, userId, userId,  // SameCity filters
+                userId, userId,          // SameHobby
+                userId, userId, userId,  // SameHobby filters
+                userId,                  // SameHobby filters
                 userId                   // Final INSERT
             );
             
@@ -182,10 +224,10 @@ public class FriendSuggestionServiceImpl implements FriendSuggestionService {
     public void dismissSuggestion(Integer userId, Integer dismissedUserId) {
         log.info("User {} dismissing suggestion: {}", userId, dismissedUserId);
         
-        // 1. Delete from suggestions
+        // 1. Xóa khỏi bảng gợi ý hiện tại
         friendSuggestionRepository.deleteByUserIdAndSuggestedUserId(userId, dismissedUserId);
         
-        // 2. Add to dismissed list
+        // 2. Thêm vào bảng "Đã bỏ qua" để không bao giờ gợi ý lại nữa
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         User dismissedUser = userRepository.findById(dismissedUserId)

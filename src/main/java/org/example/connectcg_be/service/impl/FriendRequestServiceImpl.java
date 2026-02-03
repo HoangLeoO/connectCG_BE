@@ -23,7 +23,7 @@ public class FriendRequestServiceImpl implements FriendRequestService {
     private final UserAvatarRepository userAvatarRepository;
     private final FriendRepository friendRepository;
     private final UserRepository userRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
     private final FriendSuggestionRepository friendSuggestionRepository;
 
     /**
@@ -123,10 +123,10 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         
         // Tạo thông báo cho người gửi lời mời (Sender)
         UserProfile receiverProfile = userProfileRepository.findByUserId(request.getReceiver().getId()).orElse(null);
-        String receiverName = (receiverProfile != null && receiverProfile.getFullName() != null) 
-            ? receiverProfile.getFullName() 
+        String receiverName = (receiverProfile != null && receiverProfile.getFullName() != null)
+            ? receiverProfile.getFullName()
             : request.getReceiver().getUsername();
-        
+
         Notification notification = new Notification();
         notification.setUser(request.getSender()); // Sender nhận thông báo
         notification.setActor(request.getReceiver()); // Receiver là người hành động (accept)
@@ -134,10 +134,9 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         notification.setTargetType("USER");
         notification.setTargetId(request.getReceiver().getId());
         notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
         notification.setContent(receiverName + " đã đồng ý lời mời kết bạn.");
-        
-        notificationRepository.save(notification);
+
+        notificationService.sendNotification(notification);
     }
 
     /**
@@ -205,10 +204,10 @@ public class FriendRequestServiceImpl implements FriendRequestService {
 
         // Tạo thông báo cho người nhận (Receiver)
         UserProfile senderProfile = userProfileRepository.findByUserId(sender.getId()).orElse(null);
-        String senderName = (senderProfile != null && senderProfile.getFullName() != null) 
-            ? senderProfile.getFullName() 
+        String senderName = (senderProfile != null && senderProfile.getFullName() != null)
+            ? senderProfile.getFullName()
             : sender.getUsername();
-        
+
         Notification notification = new Notification();
         notification.setUser(receiver); // Receiver nhận thông báo
         notification.setActor(sender); // Sender là người hành động (gửi request)
@@ -216,10 +215,9 @@ public class FriendRequestServiceImpl implements FriendRequestService {
         notification.setTargetType("FRIEND_REQUEST");
         notification.setTargetId(request.getId());
         notification.setIsRead(false);
-        notification.setCreatedAt(Instant.now());
         notification.setContent(senderName + " đã gửi cho bạn lời mời kết bạn.");
-        
-        notificationRepository.save(notification);
+
+        notificationService.sendNotification(notification);
     }
 
     @Override

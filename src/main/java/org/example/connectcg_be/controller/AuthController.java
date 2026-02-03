@@ -51,6 +51,14 @@ public class AuthController {
             UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
 
             boolean hasProfile = userProfileRepository.existsByUserId(userPrincipal.getId());
+            
+            // Lấy fullName nếu có profile
+            String fullName = null;
+            if (hasProfile) {
+                fullName = userProfileRepository.findByUserId(userPrincipal.getId())
+                        .map(org.example.connectcg_be.entity.UserProfile::getFullName)
+                        .orElse(null);
+            }
 
             // 4. Tạo token
             String jwt = tokenProvider.generateToken(userPrincipal);
@@ -61,7 +69,8 @@ public class AuthController {
                     "todo_refresh_token",
                     userPrincipal.getUsername(),
                     userPrincipal.getAuthorities().toString(),
-                    hasProfile));
+                    hasProfile,
+                    fullName));
 
         } catch (org.springframework.security.authentication.DisabledException e) {
             System.out.println("LOGIN ERROR: DisabledException caught! Account is disabled.");
