@@ -42,7 +42,7 @@ public class GroupController {
     }
 
     @GetMapping("/{id}/posts")
-    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id) or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
     public List<org.example.connectcg_be.dto.GroupPostDTO> getGroupPosts(@PathVariable("id") Integer id,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -111,7 +111,7 @@ public class GroupController {
     }
 
     @GetMapping("/{id}/members")
-    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id) or @groupSecurity.isGroupMember(#id) or (@groupSecurity.isPublicGroup(#id) and !@groupSecurity.isGroupBanned(#id))")
     public List<TungGroupMemberDTO> getMembers(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return groupService.getMembers(id, userPrincipal.getId());
