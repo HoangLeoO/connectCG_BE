@@ -65,4 +65,17 @@ public class User {
     @Column(name = "last_login")
     private Instant lastLogin;
 
+    @ColumnDefault("0")
+    @Column(name = "violation_count")
+    private Integer violationCount = 0;
+
+    @Column(name = "last_violation_at")
+    private Instant lastViolationAt;
+
+    @Column(name = "locked_until")
+    private Instant lockedUntil;
+
+    @ColumnDefault("0")
+    @Column(name = "permanent_locked")
+    private Boolean permanentLocked = false;
 }

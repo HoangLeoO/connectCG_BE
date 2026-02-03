@@ -93,19 +93,23 @@ public class PostController {
         return ResponseEntity.ok(updatedPost);
     }
 
-    @PostMapping("/{id}/reject")
+    @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> rejectPost(@PathVariable Integer id, Authentication authentication) {
-        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        postService.rejectPost(id, userPrincipal.getId());
+    public ResponseEntity<Void> deletePost(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal UserPrincipal userPrincipal) {
+        postService.deletePost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
 
-    @DeleteMapping("/{postId}")
-    public ResponseEntity<?> deletePost(
-            @PathVariable Integer postId,
-            @AuthenticationPrincipal UserPrincipal userPrincipal) {
-        postService.deletePost(postId, userPrincipal.getId());
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> rejectPost(
+            @PathVariable Integer id,
+            @RequestParam(defaultValue = "false") Boolean manualStrike,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        postService.rejectPost(id, userPrincipal.getId(), manualStrike);
         return ResponseEntity.ok().build();
     }
 

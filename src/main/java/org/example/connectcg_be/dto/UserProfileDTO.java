@@ -47,4 +47,10 @@ public class UserProfileDTO {
     // Relationship status
     private String relationshipStatus; // SELF, FRIEND, STRANGER
     private Boolean isFriend;
+
+    // Moderation
+    private Integer violationCount;
+    private java.time.Instant lastViolationAt;
+    private java.time.Instant lockedUntil;
+    private Boolean permanentLocked;
 }
