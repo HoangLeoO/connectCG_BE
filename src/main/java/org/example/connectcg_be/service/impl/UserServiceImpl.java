@@ -115,6 +115,10 @@ public class UserServiceImpl implements UserService {
         dto.setEmail(user.getEmail());
         dto.setRole(user.getRole());
         dto.setIsLocked(user.getIsLocked());
+        dto.setViolationCount(user.getViolationCount());
+        dto.setLastViolationAt(user.getLastViolationAt());
+        dto.setLockedUntil(user.getLockedUntil());
+        dto.setPermanentLocked(user.getPermanentLocked());
 
         // Get profile info
         UserProfile profile = userProfileRepository.findByUserId(user.getId()).orElse(null);
@@ -186,7 +190,6 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-
     public void softDeleteUser(Integer targetUserId, Integer adminId) {
         guardSelfAction(targetUserId, adminId);
 
@@ -204,7 +207,6 @@ public class UserServiceImpl implements UserService {
 
         sendUserEvent(user.getUsername(), "DELETE", "Tài khoản của bạn đã bị xóa");
     }
-
 
     private void guardSelfAction(Integer targetUserId, Integer adminId) {
         if (adminId != null && adminId.equals(targetUserId)) {
@@ -225,8 +227,7 @@ public class UserServiceImpl implements UserService {
         messagingTemplate.convertAndSendToUser(
                 username,
                 "/queue/errors",
-                Map.of("type", type, "message", message)
-        );
+                Map.of("type", type, "message", message));
     }
 
 }

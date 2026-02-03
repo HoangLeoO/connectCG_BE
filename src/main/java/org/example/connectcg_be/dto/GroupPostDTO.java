@@ -26,8 +26,11 @@ public class GroupPostDTO {
     private String approvedByFullName;
     private String status; // Added for frontend to check if post is APPROVED/PENDING
     private String aiStatus;
+    private Double aiScore;
+    private String aiReason;
     private String visibility;
     private String currentUserReaction;
     private Long reactCount;
     private Integer commentCount;
+    private Integer authorViolationCount;
 }

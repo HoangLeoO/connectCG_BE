@@ -49,4 +49,10 @@ public class GroupMember {
     @Column(name = "invited_by_id")
     private Integer invitedById;
 
+    @Column(name = "violation_count")
+    private Integer violationCount = 0;
+
+    @Column(name = "last_violation_at")
+    private Instant lastViolationAt;
+
 }

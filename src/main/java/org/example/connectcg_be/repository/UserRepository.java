@@ -25,6 +25,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     java.util.List<User> findByRole(String role);
 
+
     long countByRoleAndIsDeletedFalse(String role);
 
     long countByRoleAndIsDeletedFalseAndIsLockedFalse(String role);
@@ -41,6 +42,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             @org.springframework.data.repository.query.Param("role") String role,
             org.springframework.data.domain.Pageable pageable);
 
+
     @Query("""
                 SELECT u FROM User u
                 WHERE u.isDeleted = false
@@ -56,4 +58,6 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             @Param("role") String role,
             Pageable pageable);
 
+    java.util.List<User> findAllByViolationCountGreaterThanAndLastViolationAtBefore(Integer violationCount,
+            java.time.Instant date);
 }
