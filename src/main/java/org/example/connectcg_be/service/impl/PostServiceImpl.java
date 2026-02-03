@@ -402,6 +402,15 @@ public class PostServiceImpl implements PostService {
         return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(status);
     }
 
+    @Override
+    public org.springframework.data.domain.Page<GroupPostDTO> getHomepagePostsByStatus(String status, int page,
+            int size, Integer currentUserId) {
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<Post> posts = postRepository
+                .findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(status, pageable);
+        return posts.map(post -> convertToDTO(post, currentUserId));
+    }
+
     private void attachMediaToPost(Post post, List<String> mediaUrls, User uploader) {
         if (mediaUrls == null) {
             return; // không thay đổi media hiện có
