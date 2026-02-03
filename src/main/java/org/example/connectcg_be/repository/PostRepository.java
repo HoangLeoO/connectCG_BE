@@ -24,6 +24,9 @@ public interface PostRepository extends JpaRepository<Post, Integer> {
 
   java.util.List<Post> findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(String status);
 
+  org.springframework.data.domain.Page<Post> findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(
+      String status, org.springframework.data.domain.Pageable pageable);
+
   java.util.List<Post> findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc(String status,
       String aiStatus);
 
