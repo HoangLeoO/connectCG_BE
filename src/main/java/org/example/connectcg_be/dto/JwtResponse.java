@@ -15,11 +15,14 @@ public class JwtResponse {
     private String username;
     private String role; // Thêm role để FE dễ điều hướng
     private boolean hasProfile;
-    public JwtResponse(String accessToken, String refreshToken, String username, String role, boolean hasProfile) {
+    private String fullName;
+
+    public JwtResponse(String accessToken, String refreshToken, String username, String role, boolean hasProfile, String fullName) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.username = username;
         this.role = role;
         this.hasProfile = hasProfile;
+        this.fullName = fullName;
     }
 }

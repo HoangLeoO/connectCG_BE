@@ -48,4 +48,37 @@ public interface PostRepository extends JpaRepository<Post, Integer> {
   List<Post> findNewsfeedPosts(@Param("userId") Integer userId,
       @Param("friendIds") List<Integer> friendIds,
       @Param("groupIds") List<Integer> groupIds);
+
+  @Query(value = """
+        select p from Post p
+        where p.isDeleted = false
+          and p.status = 'APPROVED'
+          and (
+            (p.group.id in :groupIds)
+            or
+            (p.group is null and (
+                p.author.id = :userId
+                or (p.author.id in :friendIds and p.visibility in ('PUBLIC','FRIENDS'))
+                or (p.visibility = 'PUBLIC')
+            ))
+          )
+        order by p.createdAt desc
+      """, countQuery = """
+        select count(p) from Post p
+        where p.isDeleted = false
+          and p.status = 'APPROVED'
+          and (
+            (p.group.id in :groupIds)
+            or
+            (p.group is null and (
+                p.author.id = :userId
+                or (p.author.id in :friendIds and p.visibility in ('PUBLIC','FRIENDS'))
+                or (p.visibility = 'PUBLIC')
+            ))
+          )
+      """)
+  org.springframework.data.domain.Page<Post> findNewsfeedPosts(@Param("userId") Integer userId,
+      @Param("friendIds") List<Integer> friendIds,
+      @Param("groupIds") List<Integer> groupIds,
+      org.springframework.data.domain.Pageable pageable);
 }

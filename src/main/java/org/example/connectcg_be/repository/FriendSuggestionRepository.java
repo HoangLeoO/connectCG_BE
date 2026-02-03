@@ -29,7 +29,7 @@ public interface FriendSuggestionRepository extends JpaRepository<FriendSuggesti
     @Query("DELETE FROM FriendSuggestion fs WHERE fs.expiresAt < :now")
     void deleteExpired(@Param("now") Instant now);
     
-    // Kiểm tra xem user đã có suggestions chưa hết hạn chưa
+    // Kiểm tra xem user đã có suggestions chưa, hết hạn chưa
     boolean existsByUserIdAndExpiresAtAfter(Integer userId, Instant now);
 }
 

@@ -94,6 +94,20 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public org.springframework.data.domain.Page<GroupPostDTO> getNewsfeedPosts(Integer userId, int page, int size) {
+        List<Integer> friendIds = friendRepository.findAllFriendIds(userId);
+        if (friendIds == null || friendIds.isEmpty())
+            friendIds = List.of(-1);
+        List<Integer> groupIds = groupMemberService.getAcceptedGroupIds(userId, "ACCEPTED");
+        if (groupIds == null || groupIds.isEmpty())
+            groupIds = List.of(-1);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size);
+        org.springframework.data.domain.Page<Post> posts = postRepository.findNewsfeedPosts(userId, friendIds, groupIds,
+                pageable);
+        return posts.map(post -> convertToDTO(post, userId));
+    }
+
+    @Override
     public List<GroupPostDTO> getPostsByUserId(Integer userId) {
         List<Post> posts = postRepository.findAllByAuthorIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(userId,
                 "APPROVED");
