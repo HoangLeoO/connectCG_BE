@@ -345,6 +345,11 @@ public class GroupServiceImpl implements GroupService {
             dto.setTargetType("GROUP");
             dto.setTargetId(groupId);
             notificationService.sendNotification(dto, user, actor);
+
+            // Broadcast realtime
+            org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                    "INVITED", groupId, userId, mapToMemberDTO(member));
+            messagingTemplate.convertAndSend("/topic/groups/membership", event);
         }
     }
 
@@ -423,6 +428,12 @@ public class GroupServiceImpl implements GroupService {
             dto.setTargetId(groupId);
             notificationService.sendNotification(dto, inviter, actor);
         }
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                member.getStatus().equals("ACCEPTED") ? "APPROVED" : "REQUESTED",
+                groupId, userId, mapToMemberDTO(member));
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
@@ -440,6 +451,11 @@ public class GroupServiceImpl implements GroupService {
         }
 
         groupMemberRepository.delete(member);
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "LEFT", groupId, userId, null);
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
     @Override
