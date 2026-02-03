@@ -23,6 +23,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     Boolean existsByEmail(String email);
 
+    java.util.List<User> findByRole(String role);
+
+
     long countByRoleAndIsDeletedFalse(String role);
 
     long countByRoleAndIsDeletedFalseAndIsLockedFalse(String role);
@@ -38,6 +41,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             @org.springframework.data.repository.query.Param("keyword") String keyword,
             @org.springframework.data.repository.query.Param("role") String role,
             org.springframework.data.domain.Pageable pageable);
+
 
     @Query("""
                 SELECT u FROM User u

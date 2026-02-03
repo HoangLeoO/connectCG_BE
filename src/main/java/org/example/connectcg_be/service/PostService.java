@@ -27,6 +27,9 @@ public interface PostService {
         org.example.connectcg_be.entity.Post createPost(org.example.connectcg_be.dto.CreatePostRequest request,
                         boolean skipAiCheck, Integer userId);
 
+        GroupPostDTO createPostAndReturnDTO(org.example.connectcg_be.dto.CreatePostRequest request,
+                        boolean skipAiCheck, Integer userId);
+
         @Transactional
         void deletePost(Integer postId, Integer userId);
 

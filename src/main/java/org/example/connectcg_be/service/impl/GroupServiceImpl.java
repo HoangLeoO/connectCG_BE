@@ -182,8 +182,7 @@ public class GroupServiceImpl implements GroupService {
 
         group.setName(request.getName());
         group.setDescription(request.getDescription());
-        // group.setPrivacy(request.getPrivacy()); // Locked for security and AI
-        // moderation reasons
+        group.setPrivacy(request.getPrivacy());
 
         if (request.getImage() != null && !request.getImage().isEmpty()) {
             Media media = mediaService.createCoverMedia(request.getImage(), userId);
@@ -264,7 +263,6 @@ public class GroupServiceImpl implements GroupService {
     public void deleteGroup(Integer groupId, Integer userId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
-
         User requester = userService.findByIdUser(userId);
         boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(userId);
         boolean isSystemAdmin = requester != null && "ADMIN".equals(requester.getRole());

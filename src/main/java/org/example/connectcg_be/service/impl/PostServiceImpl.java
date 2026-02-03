@@ -95,7 +95,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<GroupPostDTO> getPostsByUserId(Integer userId) {
-        List<Post> posts = postRepository.findAllByAuthorIdAndStatusApproved(userId);
+        List<Post> posts = postRepository.findAllByAuthorIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(userId,
+                "APPROVED");
         return posts.stream()
                 .map(post -> convertToDTO(post, userId))
                 .collect(Collectors.toList());
@@ -149,6 +150,7 @@ public class PostServiceImpl implements PostService {
         dto.setImages(images);
 
         // Moderation fields
+        dto.setStatus(post.getStatus()); // APPROVED, PENDING, etc.
         dto.setAiStatus(post.getAiStatus());
         dto.setAiScore(post.getAiScore());
         dto.setAiReason(post.getAiReason());
@@ -458,6 +460,13 @@ public class PostServiceImpl implements PostService {
             notificationService.sendNotification(dto, author);
         }
         return savedPost;
+    }
+
+    @Override
+    @Transactional
+    public GroupPostDTO createPostAndReturnDTO(CreatePostRequest request, boolean skipAiCheck, Integer userId) {
+        Post savedPost = createPost(request, skipAiCheck, userId);
+        return convertToDTO(savedPost, userId);
     }
 
     @Override
