@@ -75,6 +75,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<CommentDTO> getCommentsByPostId(Integer postId) {
         List<Comment> allComments = commentRepository
                 .findByPostIdAndIsDeletedFalseOrderByCreatedAtAsc(postId);
