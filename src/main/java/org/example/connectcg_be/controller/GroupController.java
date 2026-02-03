@@ -63,7 +63,7 @@ public class GroupController {
     public ResponseEntity<Void> rejectPost(@PathVariable("id") Integer id, @PathVariable("postId") Integer postId,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        postService.rejectPost(postId, userPrincipal.getId(), false);
+        postService.rejectPost(postId, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
 

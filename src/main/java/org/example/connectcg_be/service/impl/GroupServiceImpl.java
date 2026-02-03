@@ -217,8 +217,6 @@ public class GroupServiceImpl implements GroupService {
         dto.setRole(member.getRole());
         dto.setStatus(member.getStatus());
         dto.setJoinedAt(member.getJoinedAt());
-        dto.setViolationCount(member.getViolationCount());
-        dto.setLastViolationAt(member.getLastViolationAt());
         return dto;
     }
 
@@ -254,7 +252,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                "LEFT", groupId, userId, null);
+                "LEFT", groupId, group.getName(), userId, null);
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -346,7 +344,7 @@ public class GroupServiceImpl implements GroupService {
 
             // Broadcast realtime
             org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                    "INVITED", groupId, userId, mapToMemberDTO(member));
+                    "INVITED", groupId, group.getName(), userId, mapToMemberDTO(member));
             messagingTemplate.convertAndSend("/topic/groups/membership", event);
         }
     }
@@ -430,7 +428,7 @@ public class GroupServiceImpl implements GroupService {
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
                 member.getStatus().equals("ACCEPTED") ? "APPROVED" : "REQUESTED",
-                groupId, userId, mapToMemberDTO(member));
+                groupId, member.getGroup().getName(), userId, mapToMemberDTO(member));
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -452,7 +450,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                "LEFT", groupId, userId, null);
+                "LEFT", groupId, member.getGroup().getName(), userId, null);
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -518,7 +516,7 @@ public class GroupServiceImpl implements GroupService {
 
                     // Broadcast realtime
                     org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                            "JOINED", groupId, userId, mapToMemberDTO(member));
+                            "JOINED", groupId, group.getName(), userId, mapToMemberDTO(member));
                     messagingTemplate.convertAndSend("/topic/groups/membership", event);
 
                     return;
@@ -565,7 +563,7 @@ public class GroupServiceImpl implements GroupService {
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
                 "ACCEPTED".equals(member.getStatus()) ? "JOINED" : "REQUESTED",
-                groupId, userId, mapToMemberDTO(member));
+                groupId, group.getName(), userId, mapToMemberDTO(member));
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -606,7 +604,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                "APPROVED", groupId, targetUserId, mapToMemberDTO(member));
+                "APPROVED", groupId, member.getGroup().getName(), targetUserId, mapToMemberDTO(member));
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -636,7 +634,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                "REJECTED", groupId, targetUserId, null);
+                "REJECTED", groupId, member.getGroup().getName(), targetUserId, null);
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 
@@ -685,8 +683,32 @@ public class GroupServiceImpl implements GroupService {
             notificationService.sendNotification(dto, targetUser, requester.getUser());
 
             org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                    "BANNED", groupId, targetUserId, null);
+                    "BANNED", groupId, group.getName(), targetUserId, null);
             messagingTemplate.convertAndSend("/topic/groups/membership", event);
+
+            // Clean up: Hard delete all PENDING posts of the banned member in this group
+            List<Post> spamPosts = postRepository.findAllByAuthorIdAndGroupIdAndStatusAndIsDeletedFalse(
+                    targetUserId, groupId, "PENDING");
+            if (!spamPosts.isEmpty()) {
+                for (Post p : spamPosts) {
+                    // Broadcast realtime delete so Admin UI updates instantly
+                    org.example.connectcg_be.dto.PostEventDTO postEvent = new org.example.connectcg_be.dto.PostEventDTO(
+                            "DELETED", null, p.getId());
+                    messagingTemplate.convertAndSend("/topic/posts", postEvent);
+
+                    postRepository.delete(p);
+                }
+                postRepository.flush();
+
+                // Notify author about cleanup
+                TungNotificationDTO cleanDto = new TungNotificationDTO();
+                cleanDto.setContent("Tất cả các bài viết đang chờ duyệt của bạn trong nhóm '" + group.getName()
+                        + "' đã bị gỡ bỏ do bạn đã bị cấm khỏi nhóm.");
+                cleanDto.setType("POST_REJECTED");
+                cleanDto.setTargetType("GROUP");
+                cleanDto.setTargetId(groupId);
+                notificationService.sendNotification(cleanDto, targetUser, requester.getUser());
+            }
         }
     }
 
@@ -838,7 +860,7 @@ public class GroupServiceImpl implements GroupService {
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                "UNBANNED", groupId, targetUserId, null);
+                "UNBANNED", groupId, group.getName(), targetUserId, null);
         messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 }

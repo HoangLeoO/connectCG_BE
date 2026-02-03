@@ -115,8 +115,6 @@ public class UserServiceImpl implements UserService {
         dto.setEmail(user.getEmail());
         dto.setRole(user.getRole());
         dto.setIsLocked(user.getIsLocked());
-        dto.setViolationCount(user.getViolationCount());
-        dto.setLastViolationAt(user.getLastViolationAt());
         dto.setLockedUntil(user.getLockedUntil());
         dto.setPermanentLocked(user.getPermanentLocked());
 

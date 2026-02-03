@@ -26,7 +26,6 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final FriendRequestRepository friendRequestRepository;
     private final UserAvatarRepository userAvatarRepository;
     private final UserCoverRepository userCoverRepository;
-    private final UserGalleryRepository userGalleryRepository;
     private final UserHobbyRepository userHobbyRepository;
     private final PostRepository postRepository;
     private final MediaRepository mediaRepository;
@@ -47,6 +46,9 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .userId(targetUser.getId())
                 .username(targetUser.getUsername())
                 .role(targetUser.getRole())
+                .isLocked(targetUser.getIsLocked() != null ? targetUser.getIsLocked() : false)
+                .lockedUntil(targetUser.getLockedUntil())
+                .permanentLocked(targetUser.getPermanentLocked() != null ? targetUser.getPermanentLocked() : false)
                 .relationshipStatus(relationship)
                 .isFriend(relationship.equals("FRIEND"))
                 .build();

@@ -19,6 +19,4 @@ public class TungGroupMemberDTO {
     private String role;
     private String status;
     private Instant joinedAt;
-    private Integer violationCount;
-    private Instant lastViolationAt;
 }

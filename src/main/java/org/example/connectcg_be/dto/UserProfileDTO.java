@@ -49,8 +49,6 @@ public class UserProfileDTO {
     private Boolean isFriend;
 
     // Moderation
-    private Integer violationCount;
-    private java.time.Instant lastViolationAt;
     private java.time.Instant lockedUntil;
     private Boolean permanentLocked;
 }

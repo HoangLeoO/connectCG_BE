@@ -11,7 +11,6 @@ import java.time.Instant;
 public class UserEventDTO {
     private String action; // "UPDATED"
     private Integer userId;
-    private Integer violationCount;
     private Instant lockedUntil;
     private Boolean permanentLocked;
     private Boolean isLocked;
