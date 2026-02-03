@@ -10,4 +10,6 @@ import java.util.List;
 @Repository
 public interface UserHobbyRepository extends JpaRepository<UserHobby, UserHobbyId> {
     List<UserHobby> findByUserId(Integer userId);
+
+    void deleteByUserId(Integer userId);
 }
