@@ -33,4 +33,6 @@ public class GroupPostDTO {
     private Long reactCount;
     private Integer commentCount;
     private Integer authorViolationCount;
+    private Instant authorLockedUntil;
+    private Boolean authorPermanentLocked;
 }

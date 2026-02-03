@@ -652,37 +652,25 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    public void kickMember(Integer groupId, Integer targetUserId, Integer adminId) {
+    public void banMember(Integer groupId, Integer targetUserId, Integer adminId) {
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
-        // 1. Check if requester is Admin or Owner
-        GroupMemberId adminPk = new GroupMemberId();
-        adminPk.setGroupId(groupId);
-        adminPk.setUserId(adminId);
+        GroupMemberId adminPk = new GroupMemberId(groupId, adminId);
         GroupMember requester = groupMemberRepository.findById(adminPk).orElse(null);
 
         boolean isRequesterAdmin = requester != null && "ADMIN".equals(requester.getRole());
         boolean isRequesterOwner = group.getOwner().getId().equals(adminId);
 
         if (!isRequesterAdmin && !isRequesterOwner) {
-            throw new RuntimeException("Chỉ Admin mới có quyền loại thành viên");
+            throw new RuntimeException("Chỉ Admin mới có quyền Ban thành viên");
         }
 
-        // 2. Không thể kick chính mình
         if (targetUserId.equals(adminId)) {
-            throw new RuntimeException("Bạn không thể kick chính mình");
+            throw new RuntimeException("Bạn không thể ban chính mình");
         }
 
-        // 3. Không thể kick Owner
-        if (group.getOwner().getId().equals(targetUserId)) {
-            throw new RuntimeException("Không thể kick chủ nhóm");
-        }
-
-        // Delete membership
-        GroupMemberId targetPk = new GroupMemberId();
-        targetPk.setGroupId(groupId);
-        targetPk.setUserId(targetUserId);
+        GroupMemberId targetPk = new GroupMemberId(groupId, targetUserId);
         GroupMember targetMember = groupMemberRepository.findById(targetPk).orElse(null);
         if (targetMember != null) {
             User targetUser = targetMember.getUser();
@@ -696,7 +684,6 @@ public class GroupServiceImpl implements GroupService {
             dto.setTargetId(groupId);
             notificationService.sendNotification(dto, targetUser, requester.getUser());
 
-            // Broadcast realtime
             org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
                     "BANNED", groupId, targetUserId, null);
             messagingTemplate.convertAndSend("/topic/groups/membership", event);
@@ -820,7 +807,7 @@ public class GroupServiceImpl implements GroupService {
         GroupMember admin = groupMemberRepository.findById(adminPk)
                 .orElseThrow(() -> new RuntimeException("Bạn không phải là thành viên của nhóm"));
 
-        boolean isAdminOrOwner = "ADMIN".equals(admin.getRole()) || "OWNER".equals(admin.getRole());
+        boolean isAdminOrOwner = admin != null && ("ADMIN".equals(admin.getRole()) || "OWNER".equals(admin.getRole()));
         boolean isOwner = group.getOwner() != null && group.getOwner().getId().equals(adminId);
 
         if (!isAdminOrOwner && !isOwner) {
@@ -838,11 +825,8 @@ public class GroupServiceImpl implements GroupService {
             throw new RuntimeException("Thành viên này không bị cấm");
         }
 
-        // Unban: Reset status and violation count
-        target.setStatus("ACCEPTED");
-        target.setViolationCount(0);
-        target.setLastViolationAt(null);
-        groupMemberRepository.save(target);
+        // Unban: Delete the record so they can join again fresh
+        groupMemberRepository.delete(target);
 
         // Send notification
         TungNotificationDTO dto = new TungNotificationDTO();
@@ -851,5 +835,10 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
         notificationService.sendNotification(dto, target.getUser(), admin.getUser());
+
+        // Broadcast realtime
+        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                "UNBANNED", groupId, targetUserId, null);
+        messagingTemplate.convertAndSend("/topic/groups/membership", event);
     }
 }

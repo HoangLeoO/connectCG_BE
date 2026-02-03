@@ -238,7 +238,9 @@ public class PostServiceImpl implements PostService {
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
 
         User author = post.getAuthor();
-        boolean shouldStrike = Boolean.TRUE.equals(manualStrike) || "TOXIC".equals(post.getAiStatus());
+        boolean isToxic = "TOXIC".equals(post.getAiStatus());
+        boolean shouldStrikeGlobal = Boolean.TRUE.equals(manualStrike) || isToxic;
+        boolean shouldStrikeGroup = isToxic;
 
         final java.util.concurrent.atomic.AtomicInteger groupStrikesCount = new java.util.concurrent.atomic.AtomicInteger(
                 0);
@@ -251,30 +253,30 @@ public class PostServiceImpl implements PostService {
         final java.util.concurrent.atomic.AtomicBoolean isGlobalPermBanned = new java.util.concurrent.atomic.AtomicBoolean(
                 false);
 
-        if (shouldStrike) {
+        if (shouldStrikeGroup && post.getGroup() != null) {
             // 1. Group-level strike (if applicable)
-            if (post.getGroup() != null) {
-                GroupMemberId memberId = new GroupMemberId(post.getGroup().getId(), author.getId());
-                groupMemberRepository.findById(memberId).ifPresent(member -> {
-                    int currentStrikes = member.getViolationCount() != null ? member.getViolationCount() : 0;
-                    int newStrikes = currentStrikes + 1;
-                    member.setViolationCount(newStrikes);
-                    member.setLastViolationAt(Instant.now());
+            GroupMemberId memberId = new GroupMemberId(post.getGroup().getId(), author.getId());
+            groupMemberRepository.findById(memberId).ifPresent(member -> {
+                int currentStrikes = member.getViolationCount() != null ? member.getViolationCount() : 0;
+                int newStrikes = currentStrikes + 1;
+                member.setViolationCount(newStrikes);
+                member.setLastViolationAt(Instant.now());
 
-                    if (newStrikes >= 3) {
-                        member.setStatus("BANNED");
-                        isGroupBanned.set(true);
+                if (newStrikes >= 3) {
+                    member.setStatus("BANNED");
+                    isGroupBanned.set(true);
 
-                        // Broadcast membership update
-                        org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
-                                "BANNED", post.getGroup().getId(), author.getId(), null);
-                        messagingTemplate.convertAndSend("/topic/groups/membership", event);
-                    }
-                    groupMemberRepository.save(member);
-                    groupStrikesCount.set(newStrikes);
-                });
-            }
+                    // Broadcast membership update
+                    org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
+                            "BANNED", post.getGroup().getId(), author.getId(), null);
+                    messagingTemplate.convertAndSend("/topic/groups/membership", event);
+                }
+                groupMemberRepository.save(member);
+                groupStrikesCount.set(newStrikes);
+            });
+        }
 
+        if (shouldStrikeGlobal) {
             // 2. Global-level strike
             int currentGlobalStrikes = author.getViolationCount() != null ? author.getViolationCount() : 0;
             int newGlobalStrikes = currentGlobalStrikes + 1;
@@ -307,11 +309,11 @@ public class PostServiceImpl implements PostService {
             String groupMsg = isGroupBanned.get()
                     ? " Bạn đã bị cấm khỏi nhóm " + post.getGroup().getName() + " do vi phạm " + groupStrikesCount.get()
                             + "/3."
-                    : (shouldStrike ? " (Vi phạm " + groupStrikesCount.get() + "/3)" : "");
+                    : (isToxic ? " (Vi phạm " + groupStrikesCount.get() + "/3)" : "");
 
             dto.setContent("Bài viết của bạn trong nhóm " + post.getGroup().getName() + " đã bị từ chối " + strikeReason
                     + groupMsg);
-            dto.setType(isGroupBanned.get() ? "GROUP_BANNED" : (shouldStrike ? "AI_STRIKE_WARNING" : "POST_REJECTED"));
+            dto.setType(isGroupBanned.get() ? "GROUP_BANNED" : (isToxic ? "AI_STRIKE_WARNING" : "POST_REJECTED"));
         } else {
             dto.setTargetType("USER");
             dto.setTargetId(author.getId());
@@ -322,7 +324,7 @@ public class PostServiceImpl implements PostService {
             else if (isGlobalLocked.get())
                 globalMsg = " Tài khoản của bạn đã bị khóa tạm thời 3 ngày do vi phạm " + globalStrikesCount.get()
                         + "/5.";
-            else if (shouldStrike)
+            else if (isToxic)
                 globalMsg = " (Vi phạm hệ thống: " + globalStrikesCount.get() + " gậy).";
 
             dto.setContent("Bài viết của bạn trên trang chủ đã bị gỡ bỏ " + strikeReason + globalMsg);
@@ -336,7 +338,7 @@ public class PostServiceImpl implements PostService {
         messagingTemplate.convertAndSend("/topic/posts", event);
 
         // Broadcast user update if strikes were changed
-        if (Boolean.TRUE.equals(manualStrike)) {
+        if (shouldStrikeGlobal) {
             UserEventDTO userEvent = new UserEventDTO(
                     "UPDATED",
                     author.getId(),
@@ -451,13 +453,18 @@ public class PostServiceImpl implements PostService {
             PostEventDTO event = new PostEventDTO("CREATED", dto, savedPost.getId());
             messagingTemplate.convertAndSend("/topic/posts", event);
         } else if ("PENDING".equals(savedPost.getStatus())) {
+            // Broadcast realtime for admins to see the new pending post
+            GroupPostDTO dto = convertToDTO(savedPost, null);
+            PostEventDTO event = new PostEventDTO("CREATED", dto, savedPost.getId());
+            messagingTemplate.convertAndSend("/topic/posts", event);
+
             // Notify author about pending status
-            TungNotificationDTO dto = new TungNotificationDTO();
-            dto.setContent("Bài viết của bạn đang chờ kiểm duyệt do nội dung nhạy cảm theo đánh giá của AI.");
-            dto.setType("POST_PENDING");
-            dto.setTargetType("POST");
-            dto.setTargetId(savedPost.getId());
-            notificationService.sendNotification(dto, author);
+            TungNotificationDTO notifDto = new TungNotificationDTO();
+            notifDto.setContent("Bài viết của bạn đang chờ kiểm duyệt do nội dung nhạy cảm theo đánh giá của AI.");
+            notifDto.setType("POST_PENDING");
+            notifDto.setTargetType("POST");
+            notifDto.setTargetId(savedPost.getId());
+            notificationService.sendNotification(notifDto, author);
         }
         return savedPost;
     }
@@ -512,13 +519,18 @@ public class PostServiceImpl implements PostService {
             PostEventDTO event = new PostEventDTO("UPDATED", dto, savedPost.getId());
             messagingTemplate.convertAndSend("/topic/posts", event);
         } else if ("PENDING".equals(savedPost.getStatus())) {
+            // Broadcast realtime for admins to see the pending update
+            GroupPostDTO dto = convertToDTO(savedPost, null);
+            PostEventDTO event = new PostEventDTO("UPDATED", dto, savedPost.getId());
+            messagingTemplate.convertAndSend("/topic/posts", event);
+
             // Notify author about pending status
-            TungNotificationDTO dto = new TungNotificationDTO();
-            dto.setContent("Bài viết (chỉnh sửa) của bạn đang chờ kiểm duyệt lại.");
-            dto.setType("POST_PENDING");
-            dto.setTargetType("POST");
-            dto.setTargetId(savedPost.getId());
-            notificationService.sendNotification(dto, savedPost.getAuthor());
+            TungNotificationDTO notifDto = new TungNotificationDTO();
+            notifDto.setContent("Bài viết (chỉnh sửa) của bạn đang chờ kiểm duyệt lại.");
+            notifDto.setType("POST_PENDING");
+            notifDto.setTargetType("POST");
+            notifDto.setTargetId(savedPost.getId());
+            notificationService.sendNotification(notifDto, savedPost.getAuthor());
         }
         return savedPost;
     }
@@ -528,7 +540,14 @@ public class PostServiceImpl implements PostService {
     public void deletePost(Integer postId, Integer userId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
-        if (!post.getAuthor().getId().equals(userId)) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+
+        boolean isAuthor = post.getAuthor().getId().equals(userId);
+        boolean isAdmin = "ADMIN".equals(user.getRole());
+
+        if (!isAuthor && !isAdmin) {
             throw new RuntimeException("Bạn không có quyền xóa bài viết này");
         }
         post.setIsDeleted(true);
