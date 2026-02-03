@@ -97,7 +97,8 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<GroupPostDTO> getPostsByUserId(Integer userId) {
-        List<Post> posts = postRepository.findAllByAuthorIdAndStatusApproved(userId);
+        List<Post> posts = postRepository.findAllByAuthorIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(userId,
+                "APPROVED");
         return posts.stream()
                 .map(post -> convertToDTO(post, userId))
                 .collect(Collectors.toList());
@@ -150,6 +151,7 @@ public class PostServiceImpl implements PostService {
         dto.setImages(images);
 
         // Moderation fields
+        dto.setStatus(post.getStatus()); // APPROVED, PENDING, etc.
         dto.setAiStatus(post.getAiStatus());
         dto.setVisibility(post.getVisibility());
 
@@ -162,8 +164,8 @@ public class PostServiceImpl implements PostService {
             }
         }
         if (currentUserId != null) {
-            org.example.connectcg_be.entity.ReactionId reactionId =
-                    new org.example.connectcg_be.entity.ReactionId(currentUserId, post.getId());
+            org.example.connectcg_be.entity.ReactionId reactionId = new org.example.connectcg_be.entity.ReactionId(
+                    currentUserId, post.getId());
 
             reactionRepository.findById(reactionId).ifPresent(reaction -> {
                 dto.setCurrentUserReaction(reaction.getType());
@@ -262,7 +264,7 @@ public class PostServiceImpl implements PostService {
     @Override
     @Transactional
     public Post createPost(CreatePostRequest request, boolean skipAiCheck,
-                           Integer userId) {
+            Integer userId) {
         User author = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -330,6 +332,13 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    public GroupPostDTO createPostAndReturnDTO(CreatePostRequest request, boolean skipAiCheck, Integer userId) {
+        Post savedPost = createPost(request, skipAiCheck, userId);
+        return convertToDTO(savedPost, userId);
+    }
+
+    @Override
+    @Transactional
     public Post updatePost(Integer postId, org.example.connectcg_be.dto.CreatePostRequest request, Integer userId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
@@ -372,7 +381,6 @@ public class PostServiceImpl implements PostService {
         }
         return savedPost;
     }
-
 
     @Transactional
     @Override

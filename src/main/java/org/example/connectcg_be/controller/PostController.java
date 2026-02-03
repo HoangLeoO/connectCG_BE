@@ -61,12 +61,12 @@ public class PostController {
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Post> createPost(
+    public ResponseEntity<GroupPostDTO> createPost(
             @Valid @RequestBody CreatePostRequest request,
             @RequestParam(defaultValue = "false") boolean skipAiCheck,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        Post createdPost = postService.createPost(request, skipAiCheck, userPrincipal.getId());
+        GroupPostDTO createdPost = postService.createPostAndReturnDTO(request, skipAiCheck, userPrincipal.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdPost);
     }
 
