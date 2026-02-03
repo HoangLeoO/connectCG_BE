@@ -31,8 +31,11 @@ public class PostController {
 
     @GetMapping("")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<GroupPostDTO>> getNewsfeedPosts(@AuthenticationPrincipal UserPrincipal currentUser) {
-        return ResponseEntity.ok(postService.getNewsfeedPosts(currentUser.getId()));
+    public ResponseEntity<?> getNewsfeedPosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @AuthenticationPrincipal UserPrincipal currentUser) {
+        return ResponseEntity.ok(postService.getNewsfeedPosts(currentUser.getId(), page, size));
     }
 
     @GetMapping("/user/{id}")
