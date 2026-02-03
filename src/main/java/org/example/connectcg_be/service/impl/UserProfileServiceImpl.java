@@ -29,10 +29,12 @@ public class UserProfileServiceImpl implements UserProfileService {
     private final UserGalleryRepository userGalleryRepository;
     private final UserHobbyRepository userHobbyRepository;
     private final PostRepository postRepository;
-
+    private final MediaRepository mediaRepository;
 
     @Override
     public UserProfileDTO getUserProfile(Integer targetUserId, Integer currentUserId) {
+        System.out.println("====== getUserProfile called ======");
+        System.out.println("targetUserId: " + targetUserId + ", currentUserId: " + currentUserId);
         User targetUser = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -71,13 +73,12 @@ public class UserProfileServiceImpl implements UserProfileService {
         dto.setCurrentAvatarUrl(getCurrentAvatar(targetUserId));
         dto.setCurrentCoverUrl(getCurrentCover(targetUserId));
 
-        if (isFriendOrSelf) {
-            dto.setGallery(getGallery(targetUserId));
-        }
+        // Gallery is always returned (can be restricted later if needed)
+        dto.setGallery(getGallery(targetUserId));
 
         dto.setHobbies(getHobbies(targetUserId));
         dto.setFriendsCount(friendRepository.countByUserId(targetUserId));
-        dto.setPostsCount(postRepository.countByAuthorIdAndIsDeletedFalse(targetUserId));
+        dto.setPostsCount(postRepository.countByAuthorIdAndStatusAndIsDeletedFalse(targetUserId, "APPROVED"));
 
         return dto;
     }
@@ -90,8 +91,7 @@ public class UserProfileServiceImpl implements UserProfileService {
             String cityCode,
             String maritalStatus,
             String lookingFor,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         // Fetch current user profile to get city and lookingFor for prioritization
         UserProfile currentUserProfile = userProfileRepository.findByUserId(currentUserId).orElse(null);
         String currentUserCityCode = (currentUserProfile != null) ? currentUserProfile.getCityCode() : null;
@@ -99,8 +99,7 @@ public class UserProfileServiceImpl implements UserProfileService {
 
         Page<MemberSearchResponse> page = userProfileRepository.searchMembers(
                 currentUserId, keyword, gender, cityCode, maritalStatus, lookingFor,
-                currentUserCityCode, currentUserLookingFor, pageable
-        );
+                currentUserCityCode, currentUserLookingFor, pageable);
 
         page.getContent().forEach(dto -> {
             dto.setAvatarUrl(getCurrentAvatar(dto.getUserId()));
@@ -110,10 +109,14 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private String determineRelationship(Integer targetUserId, Integer currentUserId) {
-        if (currentUserId == null) return "STRANGER";
-        if (targetUserId.equals(currentUserId)) return "SELF";
-        if (friendRepository.existsByUserIdAndFriendId(currentUserId, targetUserId)) return "FRIEND";
-        if (friendRequestRepository.existsBySenderIdAndReceiverIdAndStatus(currentUserId, targetUserId, "PENDING")) return "PENDING";
+        if (currentUserId == null)
+            return "STRANGER";
+        if (targetUserId.equals(currentUserId))
+            return "SELF";
+        if (friendRepository.existsByUserIdAndFriendId(currentUserId, targetUserId))
+            return "FRIEND";
+        if (friendRequestRepository.existsBySenderIdAndReceiverIdAndStatus(currentUserId, targetUserId, "PENDING"))
+            return "PENDING";
         return "STRANGER";
     }
 
@@ -129,9 +132,16 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     private List<MediaDTO> getGallery(Integer userId) {
-        return userGalleryRepository.findByUserIdOrderByDisplayOrderAsc(userId)
-                .stream()
-                .map(ug -> mapMediaToDTO(ug.getMedia()))
+        List<Media> mediaList = mediaRepository.findAllByUploaderIdAndIsDeletedFalseOrderByUploadedAtDesc(userId);
+        System.out.println("====== DEBUG getGallery ======");
+        System.out.println("userId: " + userId);
+        System.out.println("Media count from DB: " + mediaList.size());
+        for (Media m : mediaList) {
+            System.out.println("  - Media ID: " + m.getId() + ", URL: " + m.getUrl() + ", Type: " + m.getType());
+        }
+        System.out.println("==============================");
+        return mediaList.stream()
+                .map(this::mapMediaToDTO)
                 .collect(Collectors.toList());
     }
 
@@ -141,8 +151,6 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .map(uh -> mapHobbyToDTO(uh.getHobby()))
                 .collect(Collectors.toList());
     }
-
-
 
     private MediaDTO mapMediaToDTO(Media media) {
         return MediaDTO.builder()
@@ -171,17 +179,24 @@ public class UserProfileServiceImpl implements UserProfileService {
     public UserProfileDTO updateProfileInfo(Integer userId, UpdateProfileRequest request) {
         UserProfile profile = userProfileRepository.findByUserId(userId)
                 .orElseThrow(() -> new RuntimeException("Profile not found"));
-        if (request.getFullName() != null) profile.setFullName(request.getFullName());
-        if (request.getBio() != null) profile.setBio(request.getBio());
-        if (request.getOccupation() != null) profile.setOccupation(request.getOccupation());
-        if (request.getMaritalStatus() != null) profile.setMaritalStatus(request.getMaritalStatus());
-        if (request.getLookingFor() != null) profile.setLookingFor(request.getLookingFor());
-        if (request.getGender() != null) profile.setGender(request.getGender());
-        if (request.getDateOfBirth() != null) profile.setDateOfBirth(request.getDateOfBirth());
+        if (request.getFullName() != null)
+            profile.setFullName(request.getFullName());
+        if (request.getBio() != null)
+            profile.setBio(request.getBio());
+        if (request.getOccupation() != null)
+            profile.setOccupation(request.getOccupation());
+        if (request.getMaritalStatus() != null)
+            profile.setMaritalStatus(request.getMaritalStatus());
+        if (request.getLookingFor() != null)
+            profile.setLookingFor(request.getLookingFor());
+        if (request.getGender() != null)
+            profile.setGender(request.getGender());
+        if (request.getDateOfBirth() != null)
+            profile.setDateOfBirth(request.getDateOfBirth());
 
         // Nếu có update city
         if (request.getCityCode() != null) {
-             profile.setCityCode(request.getCityCode());
+            profile.setCityCode(request.getCityCode());
         }
         if (request.getCityName() != null) {
             profile.setCityName(request.getCityName());
