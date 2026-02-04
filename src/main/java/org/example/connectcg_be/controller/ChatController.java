@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 // Chat Controller handles room metadata
 @RestController
@@ -26,6 +27,7 @@ public class ChatController {
         private UserRepository userRepository;
 
         @PostMapping("/direct/{targetUserId}")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> getOrCreateDirectChat(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Integer targetUserId) {
@@ -39,12 +41,14 @@ public class ChatController {
         }
 
         @GetMapping("/my")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<List<ChatRoomDTO>> getMyChatRooms(
                         @AuthenticationPrincipal UserPrincipal currentUser) {
                 return ResponseEntity.ok(chatRoomService.getUserChatRooms(currentUser.getId()));
         }
 
         @PostMapping("/group")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> createGroupChat(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @RequestBody Map<String, Object> request) {
@@ -67,6 +71,7 @@ public class ChatController {
         }
 
         @PutMapping("/{roomId}/name")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> renameRoom(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId,
@@ -81,6 +86,7 @@ public class ChatController {
         }
 
         @PutMapping("/{roomId}/avatar")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> updateAvatar(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId,
@@ -94,6 +100,7 @@ public class ChatController {
         }
 
         @PostMapping("/{roomId}/invite")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> inviteMembers(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId,
@@ -116,6 +123,7 @@ public class ChatController {
         }
 
         @DeleteMapping("/{roomId}/members/{userId}")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ChatRoomDTO> removeMember(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId,
@@ -128,6 +136,7 @@ public class ChatController {
         }
 
         @PutMapping("/{roomId}/read")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> markAsRead(@AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId) {
                 User user = userRepository.findById(currentUser.getId())
@@ -137,6 +146,7 @@ public class ChatController {
         }
 
         @PutMapping("/{roomId}/clear")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> clearHistory(@AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId) {
                 User user = userRepository.findById(currentUser.getId())
@@ -146,6 +156,7 @@ public class ChatController {
         }
 
         @PostMapping("/{roomId}/leave")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> leaveRoom(@AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId) {
                 User user = userRepository.findById(currentUser.getId())
@@ -155,6 +166,7 @@ public class ChatController {
         }
 
         @DeleteMapping("/{roomId}")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> deleteRoom(
                         @AuthenticationPrincipal UserPrincipal currentUser,
                         @PathVariable Long roomId) {
@@ -167,6 +179,7 @@ public class ChatController {
         }
 
         @PostMapping("/last-message")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> updateLastMessageAt(@AuthenticationPrincipal UserPrincipal currentUser,
                         @RequestBody Map<String, String> payload) {
                 String firebaseRoomKey = payload.get("firebaseRoomKey");

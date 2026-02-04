@@ -7,6 +7,7 @@ import org.example.connectcg_be.service.ReportService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/reports")
@@ -23,6 +24,7 @@ public class ReportController {
     // GỬI REPORT
     // =========================
     @PostMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> createReport(@RequestBody ReportRequest request, Principal principal) {
         if (principal == null) {
             return ResponseEntity.status(401).body("Bạn cần đăng nhập để gửi báo cáo");
@@ -37,6 +39,7 @@ public class ReportController {
     // XEM DANH SÁCH REPORT (Paginated)
     // =========================
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getReports(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String targetType,
@@ -61,6 +64,7 @@ public class ReportController {
     // XEM CHI TIẾT REPORT
     // =========================
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Report> getReportDetail(@PathVariable Integer id) {
         return ResponseEntity.ok(reportService.getReportById(id));
     }
@@ -69,6 +73,7 @@ public class ReportController {
     // XỬ LÝ REPORT
     // =========================
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateReportStatus(
             @PathVariable Integer id,
             @RequestBody ReportAdminUpdateRequest request) {

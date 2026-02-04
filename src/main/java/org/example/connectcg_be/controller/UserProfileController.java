@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -23,6 +24,7 @@ public class UserProfileController {
     private final org.example.connectcg_be.service.UserCoverService userCoverService;
 
     @PostMapping("/avatar")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> updateAvatar(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestBody java.util.Map<String, String> payload) {
@@ -35,6 +37,7 @@ public class UserProfileController {
     }
 
     @PostMapping("/cover")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> updateCover(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestBody java.util.Map<String, String> payload) {
@@ -47,6 +50,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/{userId}/profile")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> getUserProfile(
             @PathVariable Integer userId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
@@ -58,6 +62,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/search")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<MemberSearchResponse>> searchMembers(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestParam(required = false) String keyword,
@@ -80,6 +85,7 @@ public class UserProfileController {
 
 
     @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> updateProfileInfo(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestBody org.example.connectcg_be.dto.UpdateProfileRequest request
