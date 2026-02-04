@@ -5,9 +5,11 @@ import org.example.connectcg_be.dto.GroupPostDTO;
 import java.util.List;
 
 public interface PostService {
-        java.util.List<org.example.connectcg_be.dto.GroupPostDTO> getPendingHomepagePosts();
+        org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO> getPendingHomepagePosts(
+                        int page, int size);
 
-        java.util.List<org.example.connectcg_be.dto.GroupPostDTO> getAuditHomepagePosts();
+        org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO> getAuditHomepagePosts(int page,
+                        int size);
 
         org.example.connectcg_be.entity.Post updatePost(Integer postId,
                         org.example.connectcg_be.dto.CreatePostRequest request, Integer userId);

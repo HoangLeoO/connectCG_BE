@@ -258,17 +258,22 @@ public class GroupController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<String> transferOwnership(
             @PathVariable("id") Integer id,
-            @RequestBody Map<String, Integer> request,
+            @RequestBody Map<String, Object> request,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         try {
-            Integer newOwnerId = request.get("newOwnerId");
+            Integer newOwnerId = (Integer) request.get("newOwnerId");
+            Boolean leaveGroupRaw = (Boolean) request.get("quit");
+            boolean leaveGroup = leaveGroupRaw != null && leaveGroupRaw;
+
             if (newOwnerId == null) {
                 return ResponseEntity.badRequest().body("Vui lòng chọn chủ sở hữu mới");
             }
 
-            groupService.transferOwnershipAndLeave(id, newOwnerId, userPrincipal.getId());
-            return ResponseEntity.ok("Đã chuyển quyền sở hữu và rời nhóm thành công");
+            groupService.transferOwnership(id, newOwnerId, userPrincipal.getId(), leaveGroup);
+            String message = leaveGroup ? "Đã chuyển quyền sở hữu và rời nhóm thành công"
+                    : "Đã chuyển quyền sở hữu thành công";
+            return ResponseEntity.ok(message);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
