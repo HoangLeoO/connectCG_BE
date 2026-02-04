@@ -7,6 +7,7 @@ import org.example.connectcg_be.service.NotificationService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -19,18 +20,21 @@ public class TungNotificationController {
     private final NotificationService notificationService;
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<TungNotificationDTO> getMyNotifications(Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         return notificationService.getMyNotifications(userPrincipal.getId());
     }
 
     @PutMapping("/{id}/read")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> markAsRead(@PathVariable("id") Integer id) {
         notificationService.markAsRead(id);
         return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deleteNotification(@PathVariable("id") Integer id) {
         notificationService.deleteNotification(id);
         return ResponseEntity.ok().build();

@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @CrossOrigin(origins = "*")
 @RestController
@@ -22,6 +23,7 @@ public class FriendRestController {
     private final FriendService friendService;
 
     @GetMapping(value = "/{userId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<FriendDTO>> getFriendsByUserId(
             Authentication authentication,
             @PathVariable(name = "userId") Integer userId,
@@ -42,6 +44,7 @@ public class FriendRestController {
     }
 
     @GetMapping("/my-friends")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<FriendDTO>> getMyFriends(
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @RequestParam(required = false) String name,
@@ -52,6 +55,7 @@ public class FriendRestController {
     }
 
     @DeleteMapping("/{friendId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> unfriend(
             Authentication authentication,
             @PathVariable Integer friendId) {

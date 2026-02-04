@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -29,6 +30,7 @@ public class FriendSuggestionController {
      * GET /api/v1/friends/suggestions?page=0&size=10
      */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, Object>> getSuggestions(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestParam(defaultValue = "0") int page,
@@ -68,6 +70,7 @@ public class FriendSuggestionController {
      * DELETE /api/v1/friends/suggestions/{userId}
      */
     @DeleteMapping("/{dismissedUserId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> dismissSuggestion(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer dismissedUserId) {
@@ -91,6 +94,7 @@ public class FriendSuggestionController {
      * POST /api/v1/friends/suggestions/refresh
      */
     @PostMapping("/refresh")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Map<String, String>> refreshSuggestions(
             @AuthenticationPrincipal UserPrincipal currentUser) {
         

@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/v1/friend-requests")
@@ -24,6 +25,7 @@ public class FriendRequestController {
      * @param currentUser Thông tin user đang đăng nhập (lấy từ Token).
      */
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Page<FriendRequestDTO>> getPendingRequests(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @RequestParam(defaultValue = "0") int page,
@@ -40,6 +42,7 @@ public class FriendRequestController {
      * @param requestId ID của bản ghi lời mời (FriendRequest ID).
      */
     @PostMapping("/{requestId}/accept")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> acceptRequest(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer requestId) {
@@ -53,6 +56,7 @@ public class FriendRequestController {
      * API Từ chối một lời mời kết bạn.
      */
     @PostMapping("/{requestId}/reject")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> rejectRequest(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer requestId) {
@@ -67,6 +71,7 @@ public class FriendRequestController {
      * @param receiverId ID của người mà bạn muốn kết bạn.
      */
     @PostMapping("/send/{receiverId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> sendRequest(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer receiverId) {
@@ -80,6 +85,7 @@ public class FriendRequestController {
      * API Hủy lời mời kết bạn đã gửi.
      */
     @DeleteMapping("/cancel/{receiverId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> cancelRequest(
             @AuthenticationPrincipal UserPrincipal currentUser,
             @PathVariable Integer receiverId) {
