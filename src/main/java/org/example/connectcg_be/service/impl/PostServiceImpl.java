@@ -399,14 +399,21 @@ public class PostServiceImpl implements PostService {
             throw new RuntimeException("Bạn không có quyền chỉnh sửa bài viết này");
         }
 
-        // Check if content changed to re-trigger moderation
+        // Check if content or visibility changed to re-trigger moderation
         boolean contentChanged = !post.getContent().equals(request.getContent());
+        String oldVisibility = post.getVisibility();
+        boolean visibilityChanged = !oldVisibility.equals(request.getVisibility());
 
         post.setContent(request.getContent());
         post.setVisibility(request.getVisibility());
         post.setUpdatedAt(Instant.now());
 
-        if (contentChanged) {
+        // Trigger check if:
+        // 1. Content changed
+        // 2. Visibility changed to PUBLIC (might have been private/unchecked before)
+        // 3. Visibility changed to GROUP context (if we supported moving posts to
+        // groups, but here groupId doesn't change on update usually)
+        if (contentChanged || (visibilityChanged && "PUBLIC".equals(request.getVisibility()))) {
             boolean isPrivileged = isPrivilegedUser(post.getAuthor(), post.getGroup());
 
             // MODERATION SCOPE CHECK:
@@ -417,11 +424,22 @@ public class PostServiceImpl implements PostService {
             boolean shouldCheckAi = isGroup || isPublic;
 
             if (isPrivileged || !shouldCheckAi) {
+                // Only auto-approve if we are sure it doesn't need checking
+                // If it was already PENDING/TOXIC, we should probably keep it?
+                // But if scope says "Don't Check", then it is safe to Approve (e.g. became
+                // Private)
                 post.setStatus("APPROVED");
                 post.setAiStatus(isPrivileged ? "SAFE" : "NOT_CHECKED");
                 post.setAiScore(0.0);
             } else {
-                // Re-trigger AI Moderation on new content
+                // Re-trigger AI Moderation
+                // Only check if content changed OR if it was previously unchecked/unknown
+                // If content IS SAME, and we already checked it (e.g. was Public SAFE, stayed
+                // Public), we could skip.
+                // But for safety/simplicity, if it became Public, we check.
+
+                // Opt: If content same and already Safe, skip?
+                // Let's just check to be safe and simple.
                 AiModerationResult aiResult = geminiService.checkPostContent(request.getContent());
                 post.setCheckedAt(Instant.now());
                 post.setAiStatus(aiResult.getLabel());
