@@ -1,5 +1,5 @@
 # --- Giai đoạn 1: Build ứng dụng ---
-FROM eclipse-temurin:17-jdk-jammy AS builder
+FROM eclipse-temurin:17-jdk-alpine AS builder
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ COPY gradle gradle
 COPY build.gradle .
 COPY settings.gradle .
 
-# Chuyển về Gradle 8.7 bên trong Docker để build ổn định (không ảnh hưởng file gốc)
+# Chuyển về Gradle 8.7 bên trong Docker để build ổn định
 RUN sed -i 's/gradle-9.2.1-bin.zip/gradle-8.7-bin.zip/g' gradle/wrapper/gradle-wrapper.properties
 
 # Cấp quyền thực thi cho gradlew
@@ -29,8 +29,8 @@ WORKDIR /app
 # Chỉ copy file .jar từ giai đoạn builder sang
 COPY --from=builder /app/build/libs/*.jar app.jar
 
-# Expose port (Render thường dùng biến môi trường PORT, nhưng mặc định spring boot là 8080)
+# Expose port
 EXPOSE 8080
 
-# Lệnh chạy ứng dụng
-ENTRYPOINT ["java", "-Xms256m", "-Xmx356m", "-jar", "app.jar"]
+# Lệnh chạy ứng dụng - tối ưu cho Railway free tier (512MB RAM)
+ENTRYPOINT ["java", "-Xms128m", "-Xmx300m", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=70.0", "-jar", "app.jar"]
