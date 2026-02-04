@@ -91,6 +91,24 @@ public class GroupController {
         return groupService.findMyGroups(userPrincipal.getId(), pageable);
     }
 
+    @GetMapping("/my-managed")
+    @PreAuthorize("isAuthenticated()")
+    public org.springframework.data.domain.Page<GroupDTO> getMyManagedGroups(
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.findMyManagedGroups(userPrincipal.getId(), pageable);
+    }
+
+    @GetMapping("/my-joined")
+    @PreAuthorize("isAuthenticated()")
+    public org.springframework.data.domain.Page<GroupDTO> getMyJoinedGroups(
+            @org.springframework.data.web.PageableDefault(size = 9) org.springframework.data.domain.Pageable pageable,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        return groupService.findMyJoinedGroups(userPrincipal.getId(), pageable);
+    }
+
     @GetMapping("/discover")
     @PreAuthorize("isAuthenticated()")
     public org.springframework.data.domain.Page<GroupDTO> getDiscoverGroups(

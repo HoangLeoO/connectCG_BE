@@ -151,6 +151,20 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public org.springframework.data.domain.Page<GroupDTO> findMyManagedGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findMyManagedGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
+    }
+
+    @Override
+    @Transactional
+    public org.springframework.data.domain.Page<GroupDTO> findMyJoinedGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findMyJoinedGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
+    }
+
+    @Override
+    @Transactional
     public org.springframework.data.domain.Page<GroupDTO> findDiscoverGroups(Integer userId,
             org.springframework.data.domain.Pageable pageable) {
         return groupRepository.findDiscoverGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
@@ -541,8 +555,10 @@ public class GroupServiceImpl implements GroupService {
 
         groupMemberRepository.save(member);
 
-        User owner = group.getOwner();
-        if (owner != null && !owner.getId().equals(userId)) {
+        // Notify all admins of the group
+        java.util.List<GroupMember> admins = groupMemberRepository.findAllByIdGroupIdAndRoleAndStatus(groupId, "ADMIN",
+                "ACCEPTED");
+        for (GroupMember admin : admins) {
             String actorFullName = userProfileRepository.findByUserId(userId)
                     .map(UserProfile::getFullName)
                     .orElse(user.getUsername());
@@ -557,10 +573,10 @@ public class GroupServiceImpl implements GroupService {
             dto.setType(type);
             dto.setTargetType("GROUP");
             dto.setTargetId(groupId);
-            notificationService.sendNotification(dto, owner, user);
+            notificationService.sendNotification(dto, admin.getUser(), user);
         }
 
-        // Broadcast realtime
+        // Broadcast realtime membership event for general UI updates
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
                 "ACCEPTED".equals(member.getStatus()) ? "JOINED" : "REQUESTED",
                 groupId, group.getName(), userId, mapToMemberDTO(member));
