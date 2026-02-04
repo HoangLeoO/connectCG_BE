@@ -109,10 +109,9 @@ public class PostController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> rejectPost(
             @PathVariable Integer id,
-            @RequestParam(defaultValue = "false") Boolean manualStrike,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
-        postService.rejectPost(id, userPrincipal.getId(), manualStrike);
+        postService.rejectPost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
 

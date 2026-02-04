@@ -32,7 +32,6 @@ public class GroupPostDTO {
     private String currentUserReaction;
     private Long reactCount;
     private Integer commentCount;
-    private Integer authorViolationCount;
     private Instant authorLockedUntil;
     private Boolean authorPermanentLocked;
 }

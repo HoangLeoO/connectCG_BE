@@ -18,6 +18,10 @@ public interface PostRepository extends JpaRepository<Post, Integer> {
 
   List<Post> findAllByAuthorIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(Integer authorId, String status);
 
+  List<Post> findAllByAuthorIdAndGroupIdAndStatusAndIsDeletedFalse(Integer authorId, Integer groupId, String status);
+
+  List<Post> findAllByAuthorIdAndStatusAndIsDeletedFalse(Integer authorId, String status);
+
   java.util.List<Post> findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(Integer groupId, String status);
 
   java.util.List<Post> findAllByGroupIdIsNullAndIsDeletedFalse();

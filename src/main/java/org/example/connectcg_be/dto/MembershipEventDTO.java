@@ -8,8 +8,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class MembershipEventDTO {
-    private String action; // JOINED, LEFT, APPROVED, REJECTED, KICKED
+    private String action; // JOINED, LEFT, APPROVED, REJECTED, KICKED, BANNED
     private Integer groupId;
+    private String groupName;
     private Integer userId;
     private TungGroupMemberDTO member; // Optional, useful for JOINED/APPROVED
 }
