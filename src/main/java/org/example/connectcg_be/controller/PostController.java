@@ -137,4 +137,13 @@ public class PostController {
         reactionService.unreactToPost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
+    @GetMapping("/{id}")
+    public ResponseEntity<GroupPostDTO> getPostById(@PathVariable Integer id) {
+        Integer currentUserId = null;
+        try {
+            return ResponseEntity.ok(postService.getPostById(id, currentUserId));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }
