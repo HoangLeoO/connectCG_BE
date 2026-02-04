@@ -12,6 +12,8 @@ import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.CommentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -139,10 +141,17 @@ public class CommentServiceImpl implements CommentService {
         post.setCommentCount(post.getCommentCount() + 1);
         postRepository.save(post);
 
-        // Broadcast realtime
+        // Broadcast realtime AFTER commit
         CommentDTO dto = convertToDTO(saved);
-        CommentEventDTO event = new CommentEventDTO("CREATED", postId, dto, saved.getId(), post.getCommentCount());
-        messagingTemplate.convertAndSend("/topic/comments", event);
+        final int newCommentCount = post.getCommentCount();
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                CommentEventDTO event = new CommentEventDTO("CREATED", postId, dto, saved.getId(), newCommentCount);
+                messagingTemplate.convertAndSend("/topic/comments", event);
+            }
+        });
 
         return dto;
     }
@@ -165,9 +174,17 @@ public class CommentServiceImpl implements CommentService {
         post.setCommentCount(Math.max(0, post.getCommentCount() - 1));
         postRepository.save(post);
 
-        // Broadcast realtime
-        CommentEventDTO event = new CommentEventDTO("DELETED", post.getId(), null, commentId, post.getCommentCount());
-        messagingTemplate.convertAndSend("/topic/comments", event);
+        // Broadcast realtime AFTER commit
+        final int postId = post.getId();
+        final int newCommentCount = post.getCommentCount();
+
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                CommentEventDTO event = new CommentEventDTO("DELETED", postId, null, commentId, newCommentCount);
+                messagingTemplate.convertAndSend("/topic/comments", event);
+            }
+        });
     }
 
 }
