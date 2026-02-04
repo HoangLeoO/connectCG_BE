@@ -22,6 +22,7 @@ public class UserProfileController {
     private final UserProfileService userProfileService;
     private final org.example.connectcg_be.service.UserAvatarService userAvatarService;
     private final org.example.connectcg_be.service.UserCoverService userCoverService;
+    private final org.example.connectcg_be.service.UserHobbyService userHobbyService;
 
     @PostMapping("/avatar")
     @PreAuthorize("isAuthenticated()")
@@ -83,14 +84,20 @@ public class UserProfileController {
         return ResponseEntity.ok(result);
     }
 
-
     @PutMapping("/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> updateProfileInfo(
             @AuthenticationPrincipal UserPrincipal currentUser,
-            @RequestBody org.example.connectcg_be.dto.UpdateProfileRequest request
-    ) {
+            @RequestBody org.example.connectcg_be.dto.UpdateProfileRequest request) {
         UserProfileDTO updatedProfile = userProfileService.updateProfileInfo(currentUser.getId(), request);
         return ResponseEntity.ok(updatedProfile);
+    }
+
+    @PutMapping("/hobbies")
+    public ResponseEntity<?> updateUserHobbies(
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @RequestBody java.util.List<Integer> hobbyIds) {
+        userHobbyService.updateUserHobbies(currentUser.getId(), hobbyIds);
+        return ResponseEntity.ok().build();
     }
 }
