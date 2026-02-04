@@ -1,5 +1,7 @@
 # --- Giai đoạn 1: Build ứng dụng ---
-FROM eclipse-temurin:17-jdk-jammy AS builder
+FROM eclipse-temurin:17-jdk-alpine
+COPY target/*.jar app.jar
+ENTRYPOINT ["java", "-Xmx256m", "-Xms128m", "-jar", "app.jar"]
 
 WORKDIR /app
 
