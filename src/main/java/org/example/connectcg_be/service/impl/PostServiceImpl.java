@@ -40,7 +40,7 @@ public class PostServiceImpl implements PostService {
     private UserRepository userRepository;
 
     @Autowired
-    private org.example.connectcg_be.service.GeminiService geminiService;
+    private org.example.connectcg_be.service.AiModerationService aiModerationService;
 
     @Autowired
     private org.example.connectcg_be.repository.GroupRepository groupRepository;
@@ -344,14 +344,15 @@ public class PostServiceImpl implements PostService {
             post.setAiScore(0.0);
             skipAiCheck = true;
         } else {
-            AiModerationResult aiResult = geminiService.checkPostContent(request.getContent());
+            AiModerationResult aiResult = aiModerationService.checkPostContent(request.getContent());
             post.setCheckedAt(Instant.now());
             post.setAiStatus(aiResult.getLabel());
             post.setAiScore(aiResult.getScore());
             post.setAiReason(aiResult.getReason());
 
             // Unified threshold: < 0.6 is APPROVED, >= 0.6 is PENDING
-            // Note: Fail-Safe logic in GeminiService returns 0.9 (PENDING) on error/toxic
+            // Note: Fail-Safe logic in AiModerationService returns 0.9 (PENDING) on
+            // error/toxic
             if (aiResult.getScore() < 0.6) {
                 post.setStatus("APPROVED");
             } else {
@@ -440,7 +441,7 @@ public class PostServiceImpl implements PostService {
 
                 // Opt: If content same and already Safe, skip?
                 // Let's just check to be safe and simple.
-                AiModerationResult aiResult = geminiService.checkPostContent(request.getContent());
+                AiModerationResult aiResult = aiModerationService.checkPostContent(request.getContent());
                 post.setCheckedAt(Instant.now());
                 post.setAiStatus(aiResult.getLabel());
                 post.setAiScore(aiResult.getScore());
