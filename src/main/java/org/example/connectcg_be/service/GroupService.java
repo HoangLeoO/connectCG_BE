@@ -49,7 +49,7 @@ public interface GroupService {
 
         void banMember(Integer groupId, Integer targetUserId, Integer adminId);
 
-        void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId);
+        void transferOwnership(Integer groupId, Integer newOwnerId, Integer currentOwnerId, boolean leaveGroup);
 
         void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId);
 

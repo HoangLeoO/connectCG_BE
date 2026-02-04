@@ -34,6 +34,9 @@ public interface PostRepository extends JpaRepository<Post, Integer> {
   java.util.List<Post> findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc(String status,
       String aiStatus);
 
+  org.springframework.data.domain.Page<Post> findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc(
+      String status, String aiStatus, org.springframework.data.domain.Pageable pageable);
+
   @Query("""
         select p from Post p
         where p.isDeleted = false

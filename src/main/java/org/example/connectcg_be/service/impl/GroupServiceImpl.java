@@ -714,17 +714,17 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
-    public void transferOwnershipAndLeave(Integer groupId, Integer newOwnerId, Integer currentOwnerId) {
+    public void transferOwnership(Integer groupId, Integer newOwnerId, Integer currentOwnerId, boolean leaveGroup) {
 
         Group group = groupRepository.findById(groupId)
-                .orElseThrow(() -> new RuntimeException("Nhóm không tại"));
+                .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
         if (!group.getOwner().getId().equals(currentOwnerId)) {
-            throw new RuntimeException("Lỗi");
+            throw new RuntimeException("Bạn không phải là chủ nhóm");
         }
 
         if (newOwnerId.equals(currentOwnerId)) {
-            throw new RuntimeException(" Lỗi");
+            throw new RuntimeException("Người được chọn đã là chủ nhóm");
         }
 
         User newOwner = userService.findByIdUser(newOwnerId);
@@ -736,19 +736,34 @@ public class GroupServiceImpl implements GroupService {
         GroupMember newOwnerMember = groupMemberRepository.findById(newOwnerMemberId)
                 .orElseThrow(() -> new RuntimeException("Người dùng không phải thành viên trong nhóm"));
 
+        // 1. Update Group Owner Reference
         group.setOwner(newOwner);
         groupRepository.save(group);
 
+        // 2. Upgrade New Owner to ADMIN
         newOwnerMember.setRole("ADMIN");
         groupMemberRepository.save(newOwnerMember);
 
+        // 3. Handle Old Owner
         GroupMemberId oldOwnerMemberId = new GroupMemberId();
         oldOwnerMemberId.setGroupId(groupId);
         oldOwnerMemberId.setUserId(currentOwnerId);
-        groupMemberRepository.deleteById(oldOwnerMemberId);
 
+        if (leaveGroup) {
+            // Leave Group: Delete record
+            groupMemberRepository.deleteById(oldOwnerMemberId);
+        } else {
+            // Transfer Only: Demote to MEMBER
+            GroupMember oldOwnerMember = groupMemberRepository.findById(oldOwnerMemberId)
+                    .orElseThrow(() -> new RuntimeException("Lỗi dữ liệu thành viên chủ nhóm cũ"));
+
+            oldOwnerMember.setRole("MEMBER");
+            groupMemberRepository.save(oldOwnerMember);
+        }
+
+        // 4. Notifications
         TungNotificationDTO dto = new TungNotificationDTO();
-        dto.setContent("Bạn đã được ủy quyền thành admin của nhóm " + group.getName());
+        dto.setContent("Bạn đã được ủy quyền thành chủ nhóm của nhóm " + group.getName());
         dto.setType("GROUP_OWNER_CHANGE");
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
@@ -758,20 +773,36 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateMemberRole(Integer groupId, Integer targetUserId, String newRole, Integer actorId) {
+        if (groupId == null || targetUserId == null || actorId == null) {
+            throw new RuntimeException("Tham số không hợp lệ: ID không thể null");
+        }
+
         Group group = groupRepository.findByIdAndIsDeletedFalse(groupId)
                 .orElseThrow(() -> new RuntimeException("Nhóm không tồn tại"));
 
-        GroupMemberId actorPk = new GroupMemberId(groupId, actorId);
-        GroupMember actor = groupMemberRepository.findById(actorPk)
-                .orElseThrow(() -> new RuntimeException("Lỗi permission"));
+        // Use setters to be 100% sure about field mapping
+        GroupMemberId actorPk = new GroupMemberId();
+        actorPk.setGroupId(groupId);
+        actorPk.setUserId(actorId);
 
-        if (!"ADMIN".equals(actor.getRole()) && !group.getOwner().getId().equals(actorId)) {
+        GroupMember actor = groupMemberRepository.findById(actorPk)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin thành viên của người thực hiện"));
+
+        // Check permission: Must be ADMIN or OWNER
+        boolean isRoleAdmin = "ADMIN".equals(actor.getRole());
+        boolean isOwner = group.getOwner().getId().equals(actorId);
+
+        if (!isRoleAdmin && !isOwner) {
             throw new RuntimeException("Chỉ admin mới có quyền đổi vai trò");
         }
 
-        GroupMemberId targetPk = new GroupMemberId(groupId, targetUserId);
+        // Check Target
+        GroupMemberId targetPk = new GroupMemberId();
+        targetPk.setGroupId(groupId);
+        targetPk.setUserId(targetUserId);
+
         GroupMember target = groupMemberRepository.findById(targetPk)
-                .orElseThrow(() -> new RuntimeException("Thành viên không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Thành viên mục tiêu không tồn tại trong nhóm"));
 
         // Don't allow changing owner's role through this method directly if it's not a
         // transfer
@@ -789,7 +820,11 @@ public class GroupServiceImpl implements GroupService {
         dto.setTargetType("GROUP");
         dto.setTargetId(groupId);
 
-        notificationService.sendNotification(dto, target.getUser(), actor.getUser());
+        // Target user might be needed from member entity
+        User targetUser = target.getUser();
+        if (targetUser != null) {
+            notificationService.sendNotification(dto, targetUser, actor.getUser());
+        }
     }
 
     @Override

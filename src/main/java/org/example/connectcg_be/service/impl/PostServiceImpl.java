@@ -8,6 +8,9 @@ import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -199,19 +202,19 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
-    public List<GroupPostDTO> getPendingHomepagePosts() {
-        return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc("PENDING")
-                .stream()
-                .map(post -> convertToDTO(post, null))
-                .collect(Collectors.toList());
+    public Page<GroupPostDTO> getPendingHomepagePosts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return postRepository.findAllByGroupIdIsNullAndStatusAndIsDeletedFalseOrderByCreatedAtDesc("PENDING", pageable)
+                .map(post -> convertToDTO(post, null));
     }
 
     @Override
-    public List<GroupPostDTO> getAuditHomepagePosts() {
+    public Page<GroupPostDTO> getAuditHomepagePosts(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
         return postRepository
-                .findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc("APPROVED", "TOXIC")
-                .stream().map(post -> convertToDTO(post, null))
-                .collect(Collectors.toList());
+                .findAllByGroupIdIsNullAndStatusAndAiStatusAndIsDeletedFalseOrderByCreatedAtDesc("APPROVED", "TOXIC",
+                        pageable)
+                .map(post -> convertToDTO(post, null));
     }
 
     @Override
@@ -358,7 +361,7 @@ public class PostServiceImpl implements PostService {
             messagingTemplate.convertAndSend("/topic/posts", event);
 
             TungNotificationDTO notifDto = new TungNotificationDTO();
-            notifDto.setContent("Bài viết của bạn đang chờ quản trị viên phê duyệt.");
+            notifDto.setContent("Bài viết của bạn đã được gửi và đang chờ quản trị viên phê duyệt.");
             notifDto.setType("POST_PENDING");
             notifDto.setTargetType("POST");
             notifDto.setTargetId(savedPost.getId());

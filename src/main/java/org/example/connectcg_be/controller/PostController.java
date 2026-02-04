@@ -56,14 +56,18 @@ public class PostController {
 
     @GetMapping("/admin/pending")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<org.example.connectcg_be.dto.GroupPostDTO>> getPendingHomepagePosts() {
-        return ResponseEntity.ok(postService.getPendingHomepagePosts());
+    public ResponseEntity<org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO>> getPendingHomepagePosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(postService.getPendingHomepagePosts(page, size));
     }
 
     @GetMapping("/admin/audit")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<org.example.connectcg_be.dto.GroupPostDTO>> getAuditHomepagePosts() {
-        return ResponseEntity.ok(postService.getAuditHomepagePosts());
+    public ResponseEntity<org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO>> getAuditHomepagePosts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseEntity.ok(postService.getAuditHomepagePosts(page, size));
     }
 
     @PostMapping
