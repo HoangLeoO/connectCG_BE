@@ -624,4 +624,10 @@ public class PostServiceImpl implements PostService {
 
         return false;
     }
+    @Override
+    public GroupPostDTO getPostById(Integer postId, Integer currentUserId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
+        return convertToDTO(post, currentUserId);
+    }
 }

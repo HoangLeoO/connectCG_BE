@@ -42,4 +42,5 @@ public interface PostService {
         org.springframework.data.domain.Page<org.example.connectcg_be.dto.GroupPostDTO> getHomepagePostsByStatus(
                         String status,
                         int page, int size, Integer currentUserId);
+        GroupPostDTO getPostById(Integer postId, Integer currentUserId);
 }
