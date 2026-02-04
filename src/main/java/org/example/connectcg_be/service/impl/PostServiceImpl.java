@@ -326,6 +326,17 @@ public class PostServiceImpl implements PostService {
         // Website Admins, Group Owners, and Group Admins bypass moderation
         boolean isPrivileged = isPrivilegedUser(author, post.getGroup());
 
+        // MODERATION SCOPE CHECK:
+        // 1. Group Posts: Always check (implied Public context)
+        // 2. Homepage Posts: Check ONLY if PUBLIC
+        boolean isPublic = "PUBLIC".equals(post.getVisibility());
+        boolean isGroup = post.getGroup() != null;
+        boolean shouldCheckAi = isGroup || isPublic;
+
+        if (!shouldCheckAi) {
+            skipAiCheck = true;
+        }
+
         // AI Moderation Logic with Simplified 0.6 threshold
         if (skipAiCheck || isPrivileged) {
             post.setStatus("APPROVED");
@@ -339,7 +350,8 @@ public class PostServiceImpl implements PostService {
             post.setAiScore(aiResult.getScore());
             post.setAiReason(aiResult.getReason());
 
-            // Unified 0.6 Threshold: < 0.6 is APPROVED, >= 0.6 is PENDING
+            // Unified threshold: < 0.6 is APPROVED, >= 0.6 is PENDING
+            // Note: Fail-Safe logic in GeminiService returns 0.9 (PENDING) on error/toxic
             if (aiResult.getScore() < 0.6) {
                 post.setStatus("APPROVED");
             } else {
@@ -397,9 +409,16 @@ public class PostServiceImpl implements PostService {
         if (contentChanged) {
             boolean isPrivileged = isPrivilegedUser(post.getAuthor(), post.getGroup());
 
-            if (isPrivileged) {
+            // MODERATION SCOPE CHECK:
+            // 1. Group Posts: Always check (implied Public context)
+            // 2. Homepage Posts: Check ONLY if PUBLIC
+            boolean isPublic = "PUBLIC".equals(post.getVisibility());
+            boolean isGroup = post.getGroup() != null;
+            boolean shouldCheckAi = isGroup || isPublic;
+
+            if (isPrivileged || !shouldCheckAi) {
                 post.setStatus("APPROVED");
-                post.setAiStatus("SAFE");
+                post.setAiStatus(isPrivileged ? "SAFE" : "NOT_CHECKED");
                 post.setAiScore(0.0);
             } else {
                 // Re-trigger AI Moderation on new content
