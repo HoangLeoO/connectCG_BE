@@ -3,12 +3,13 @@ package org.example.connectcg_be.security.oauth2;
 import org.example.connectcg_be.entity.User;
 import org.example.connectcg_be.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+
 import java.util.UUID;
-import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
@@ -50,6 +51,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setIsDeleted(false);
             user.setIsLocked(false);
             userRepository.save(user);
+        } else {
+            // [QUAN TRỌNG]: Nếu người dùng đã tồn tại nhưng chưa được kích hoạt
+            // thì ta kích hoạt luôn vì Google đã xác thực email này rồi.
+            if (Boolean.FALSE.equals(user.getIsEnabled())) {
+                user.setIsEnabled(true);
+                userRepository.save(user);
+            }
         }
         // Return DefaultOAuth2User hoặc custom UserPrincipal nếu cần
         return oAuth2User;
