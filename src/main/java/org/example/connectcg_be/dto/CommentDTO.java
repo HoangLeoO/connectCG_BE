@@ -26,6 +26,8 @@ public class CommentDTO {
     // ID của comment cha (null nếu là root)
     private Integer parentId;
 
+    private String imageUrl;
+
     // Danh sách reply (comment con) - Dùng cho cấu trúc cây
     private List<CommentDTO> replies = new ArrayList<>();
 }
