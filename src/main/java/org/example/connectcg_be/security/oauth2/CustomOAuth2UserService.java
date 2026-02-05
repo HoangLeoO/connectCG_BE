@@ -52,7 +52,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setIsLocked(false);
             userRepository.save(user);
         } else {
-            // [QUAN TRỌNG]: Nếu người dùng đã tồn tại nhưng chưa được kích hoạt
+            // Nếu người dùng đã tồn tại nhưng chưa được kích hoạt
             // thì ta kích hoạt luôn vì Google đã xác thực email này rồi.
             if (Boolean.FALSE.equals(user.getIsEnabled())) {
                 user.setIsEnabled(true);

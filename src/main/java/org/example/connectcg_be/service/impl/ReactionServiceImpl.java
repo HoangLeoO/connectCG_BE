@@ -2,13 +2,16 @@ package org.example.connectcg_be.service.impl;
 
 import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.ReactionEventDTO;
+import org.example.connectcg_be.entity.Notification;
 import org.example.connectcg_be.entity.Post;
 import org.example.connectcg_be.entity.Reaction;
 import org.example.connectcg_be.entity.ReactionId;
 import org.example.connectcg_be.entity.User;
+import org.example.connectcg_be.entity.UserProfile;
 import org.example.connectcg_be.repository.PostRepository;
 import org.example.connectcg_be.repository.ReactionRepository;
 import org.example.connectcg_be.repository.UserRepository;
+import org.example.connectcg_be.service.NotificationService;
 import org.example.connectcg_be.service.ReactionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,10 @@ public class ReactionServiceImpl implements ReactionService {
     private PostRepository postRepository;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private NotificationService notificationService;
+    @Autowired
+    private org.example.connectcg_be.repository.UserProfileRepository userProfileRepository;
     @Autowired
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
 
@@ -55,6 +62,24 @@ public class ReactionServiceImpl implements ReactionService {
             // Cộng reactCount trong Post
             post.setReactCount((post.getReactCount() != null ? post.getReactCount() : 0) + 1);
             postRepository.save(post);
+
+            // Gửi thông báo cho chủ bài viết
+            if (!userId.equals(post.getAuthor().getId())) {
+                Notification notification = new Notification();
+                notification.setUser(post.getAuthor());
+                notification.setActor(user);
+                notification.setType("POST_REACTION");
+                notification.setTargetType("POST");
+                notification.setTargetId(postId);
+                notification.setIsRead(false);
+
+                String actorName = userProfileRepository.findByUserId(userId)
+                        .map(org.example.connectcg_be.entity.UserProfile::getFullName)
+                        .orElse(user.getUsername());
+                notification.setContent(actorName + " đã bày tỏ cảm xúc về bài viết của bạn.");
+
+                notificationService.sendNotification(notification);
+            }
         }
 
         // Broadcast realtime

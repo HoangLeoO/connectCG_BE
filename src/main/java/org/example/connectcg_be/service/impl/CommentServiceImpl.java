@@ -4,10 +4,7 @@ import jakarta.transaction.Transactional;
 import org.example.connectcg_be.dto.CommentDTO;
 import org.example.connectcg_be.dto.CommentEventDTO;
 import org.example.connectcg_be.dto.CreateCommentRequest;
-import org.example.connectcg_be.entity.Comment;
-import org.example.connectcg_be.entity.Post;
-import org.example.connectcg_be.entity.User;
-import org.example.connectcg_be.entity.UserAvatar;
+import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.CommentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,7 +35,11 @@ public class CommentServiceImpl implements CommentService {
     @Autowired
     private UserAvatarRepository userAvatarRepository;
     @Autowired
+    private org.example.connectcg_be.service.NotificationService notificationService;
+    @Autowired
     private org.springframework.messaging.simp.SimpMessagingTemplate messagingTemplate;
+    @Autowired
+    private MediaRepository mediaRepository;
 
     private CommentDTO convertToDTO(Comment comment) {
         CommentDTO dto = new CommentDTO();
@@ -63,6 +64,10 @@ public class CommentServiceImpl implements CommentService {
 
         dto.setParentId(comment.getParent() != null ? comment.getParent().getId() : null);
 
+        if (comment.getMedia() != null) {
+            dto.setImageUrl(comment.getMedia().getUrl());
+        }
+
         return dto;
     }
 
@@ -80,7 +85,7 @@ public class CommentServiceImpl implements CommentService {
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public List<CommentDTO> getCommentsByPostId(Integer postId) {
         List<Comment> allComments = commentRepository
-                .findByPostIdAndIsDeletedFalseOrderByCreatedAtAsc(postId);
+                .findByPostIdAndIsDeletedFalseOrderByCreatedAtDesc(postId);
         Map<Integer, CommentDTO> dtoMap = new HashMap<>();
         List<CommentDTO> rootComments = new ArrayList<>();
         // convert toan bo comment sang dto
@@ -122,6 +127,11 @@ public class CommentServiceImpl implements CommentService {
         comment.setCreatedAt(Instant.now());
         comment.setIsDeleted(false);
 
+        User commenter = user;
+        String commenterName = userProfileRepository.findByUserId(commenter.getId())
+                .map(org.example.connectcg_be.entity.UserProfile::getFullName)
+                .orElse(commenter.getUsername());
+
         if (request.getParentId() != null) {
             Comment parent = commentRepository.findById(request.getParentId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy comment cha"));
@@ -134,8 +144,52 @@ public class CommentServiceImpl implements CommentService {
             }
 
             comment.setParent(parent);
+
+            // Gửi thông báo cho chủ comment cha (Reply Notification)
+            if (!commenter.getId().equals(parent.getAuthor().getId())) {
+                Notification notification = new Notification();
+                notification.setUser(parent.getAuthor());
+                notification.setActor(commenter);
+                notification.setType("COMMENT_REPLY");
+                notification.setTargetType("POST");
+                notification.setTargetId(postId);
+                notification.setIsRead(false);
+                notification.setContent(commenterName + " đã phản hồi bình luận của bạn.");
+                notificationService.sendNotification(notification);
+            }
         }
+
+        // --- Xử lý Media (Ảnh) cho comment ---
+        if (request.getImageUrl() != null && !request.getImageUrl().isBlank()) {
+            Media media = new Media();
+            media.setUrl(request.getImageUrl());
+            media.setUploader(user);
+            media.setType("IMAGE"); // Mặc định là IMAGE cho comment
+            media.setUploadedAt(Instant.now());
+            media.setIsDeleted(false);
+            media = mediaRepository.save(media);
+            comment.setMedia(media);
+        }
+
         Comment saved = commentRepository.save(comment);
+
+        // Gửi thông báo cho chủ bài viết (Comment Notification)
+        if (!commenter.getId().equals(post.getAuthor().getId())) {
+            Notification notification = new Notification();
+            notification.setUser(post.getAuthor());
+            notification.setActor(commenter);
+            notification.setType("POST_COMMENT");
+            notification.setTargetType("POST");
+            notification.setTargetId(postId);
+            notification.setIsRead(false);
+
+            String truncatedContent = saved.getContent();
+            if (truncatedContent != null && truncatedContent.length() > 50) {
+                truncatedContent = truncatedContent.substring(0, 47) + "...";
+            }
+            notification.setContent(commenterName + " đã bình luận về bài viết của bạn: \"" + truncatedContent + "\"");
+            notificationService.sendNotification(notification);
+        }
 
         // Cập nhật comment count của post
         post.setCommentCount(post.getCommentCount() + 1);
