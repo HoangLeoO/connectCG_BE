@@ -15,6 +15,12 @@ public interface GroupService {
         org.springframework.data.domain.Page<GroupDTO> findMyGroups(Integer userId,
                         org.springframework.data.domain.Pageable pageable);
 
+        org.springframework.data.domain.Page<GroupDTO> findMyManagedGroups(Integer userId,
+                        org.springframework.data.domain.Pageable pageable);
+
+        org.springframework.data.domain.Page<GroupDTO> findMyJoinedGroups(Integer userId,
+                        org.springframework.data.domain.Pageable pageable);
+
         org.springframework.data.domain.Page<GroupDTO> findDiscoverGroups(Integer userId,
                         org.springframework.data.domain.Pageable pageable);
 

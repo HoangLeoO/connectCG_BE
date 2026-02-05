@@ -151,6 +151,20 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public org.springframework.data.domain.Page<GroupDTO> findMyManagedGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findMyManagedGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
+    }
+
+    @Override
+    @Transactional
+    public org.springframework.data.domain.Page<GroupDTO> findMyJoinedGroups(Integer userId,
+            org.springframework.data.domain.Pageable pageable) {
+        return groupRepository.findMyJoinedGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
+    }
+
+    @Override
+    @Transactional
     public org.springframework.data.domain.Page<GroupDTO> findDiscoverGroups(Integer userId,
             org.springframework.data.domain.Pageable pageable) {
         return groupRepository.findDiscoverGroups(userId, pageable).map(g -> this.mapToDTO(g, userId));
@@ -234,21 +248,31 @@ public class GroupServiceImpl implements GroupService {
         memberId.setGroupId(groupId);
         memberId.setUserId(userId);
 
+        Optional<GroupMember> memberOpt = groupMemberRepository.findById(memberId);
+        if (memberOpt.isEmpty()) {
+            return;
+        }
+
+        GroupMember member = memberOpt.get();
+        String oldStatus = member.getStatus();
+
         User userLeaving = userService.findByIdUser(userId);
         groupMemberRepository.deleteById(memberId);
 
-        // Notify Owner/Admins that a member left
-        String actorFullName = userProfileRepository.findByUserId(userId)
-                .map(UserProfile::getFullName)
-                .orElse(userLeaving.getUsername());
+        // Notify Owner/Admins ONLY if they were an ACTUAL member
+        if ("ACCEPTED".equals(oldStatus)) {
+            String actorFullName = userProfileRepository.findByUserId(userId)
+                    .map(UserProfile::getFullName)
+                    .orElse(userLeaving.getUsername());
 
-        TungNotificationDTO noti = new TungNotificationDTO();
-        noti.setContent(actorFullName + " đã rời khỏi nhóm " + group.getName());
-        noti.setType("GROUP_MEMBER_LEFT");
-        noti.setTargetType("GROUP");
-        noti.setTargetId(groupId);
+            TungNotificationDTO noti = new TungNotificationDTO();
+            noti.setContent(actorFullName + " đã rời khỏi nhóm " + group.getName());
+            noti.setType("GROUP_MEMBER_LEFT");
+            noti.setTargetType("GROUP");
+            noti.setTargetId(groupId);
 
-        notificationService.sendNotification(noti, group.getOwner(), userLeaving);
+            notificationService.sendNotification(noti, group.getOwner(), userLeaving);
+        }
 
         // Broadcast realtime
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
@@ -541,26 +565,41 @@ public class GroupServiceImpl implements GroupService {
 
         groupMemberRepository.save(member);
 
+        // Notify all admins of the group
+        java.util.List<GroupMember> admins = groupMemberRepository.findAllByIdGroupIdAndRoleAndStatus(groupId, "ADMIN",
+                "ACCEPTED");
+
+        // Ensure owner is included in notification list if not already there
         User owner = group.getOwner();
-        if (owner != null && !owner.getId().equals(userId)) {
-            String actorFullName = userProfileRepository.findByUserId(userId)
-                    .map(UserProfile::getFullName)
-                    .orElse(user.getUsername());
 
-            String type = "PRIVATE".equals(group.getPrivacy()) ? "GROUP_JOIN_REQUEST" : "GROUP_MEMBER_JOINED";
-            String content = "PRIVATE".equals(group.getPrivacy())
-                    ? actorFullName + " đã yêu cầu tham gia nhóm " + group.getName()
-                    : actorFullName + " đã tham gia vào nhóm " + group.getName();
+        String actorFullName = userProfileRepository.findByUserId(userId)
+                .map(UserProfile::getFullName)
+                .orElse(user.getUsername());
 
-            TungNotificationDTO dto = new TungNotificationDTO();
-            dto.setContent(content);
-            dto.setType(type);
-            dto.setTargetType("GROUP");
-            dto.setTargetId(groupId);
+        String type = "PRIVATE".equals(group.getPrivacy()) ? "GROUP_JOIN_REQUEST" : "GROUP_MEMBER_JOINED";
+        String content = "PRIVATE".equals(group.getPrivacy())
+                ? actorFullName + " đã yêu cầu tham gia nhóm " + group.getName()
+                : actorFullName + " đã tham gia vào nhóm " + group.getName();
+
+        TungNotificationDTO dto = new TungNotificationDTO();
+        dto.setContent(content);
+        dto.setType(type);
+        dto.setTargetType("GROUP");
+        dto.setTargetId(groupId);
+
+        // Send to all admins
+        for (GroupMember admin : admins) {
+            notificationService.sendNotification(dto, admin.getUser(), user);
+        }
+
+        // Also send to owner if they are not in the 'admins' list (though they usually
+        // are)
+        boolean ownerNotified = admins.stream().anyMatch(a -> a.getUser().getId().equals(owner.getId()));
+        if (!ownerNotified && owner != null && !owner.getId().equals(userId)) {
             notificationService.sendNotification(dto, owner, user);
         }
 
-        // Broadcast realtime
+        // Broadcast realtime membership event for general UI updates
         org.example.connectcg_be.dto.MembershipEventDTO event = new org.example.connectcg_be.dto.MembershipEventDTO(
                 "ACCEPTED".equals(member.getStatus()) ? "JOINED" : "REQUESTED",
                 groupId, group.getName(), userId, mapToMemberDTO(member));
