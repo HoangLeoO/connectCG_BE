@@ -24,7 +24,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity // Cho phÃ©p dÃ¹ng @PreAuthorize á»Ÿ Controller
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Autowired
