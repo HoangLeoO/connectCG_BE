@@ -98,7 +98,8 @@ public class AuthServiceImpl implements AuthService {
                         </p>
                     </div>
                 </div>
-                """.formatted(savedUser.getUsername(), link);
+                """
+                .formatted(savedUser.getUsername(), link);
         emailService.sendHtmlMessage(savedUser.getEmail(), "Xác thực tài khoản - Connect", htmlContent);
         return savedUser;
     }
@@ -176,6 +177,10 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
 
+        if (!user.getIsEnabled()) {
+            throw new RuntimeException("Tài khoản chưa được kích hoạt. Vui lòng kiểm tra email để xác thực.");
+        }
+
         String token = UUID.randomUUID().toString();
         PasswordResetToken myToken = new PasswordResetToken(token, user);
         tokenRepository.save(myToken);
@@ -205,7 +210,8 @@ public class AuthServiceImpl implements AuthService {
                             </p>
                         </div>
                     </div>
-                """.formatted(user.getUsername(), link);
+                """
+                .formatted(user.getUsername(), link);
         emailService.sendHtmlMessage(email, "Yêu cầu đặt lại mật khẩu - Connect", htmlContent);
     }
 
@@ -237,6 +243,5 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         verificationTokenRepository.delete(verificationToken);
     }
-
 
 }
