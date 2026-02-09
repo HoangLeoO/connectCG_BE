@@ -23,7 +23,7 @@ public class CommentController {
     private CommentService commentService;
 
     @GetMapping
-    public ResponseEntity<List<CommentDTO>> getComments(@PathVariable Integer postId) {
+    public ResponseEntity<List<CommentDTO>> getComments(@PathVariable("postId") Integer postId) {
         return ResponseEntity.ok(commentService.getCommentsByPostId(postId));
     }
 
@@ -38,12 +38,13 @@ public class CommentController {
         CommentDTO created = commentService.createComment(postId, user.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
+
     // DELETE /api/posts/{postId}/comments/{commentId} - Xóa comment
     @DeleteMapping("/{commentId}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deleteComment(
-            @PathVariable Integer postId,
-            @PathVariable Integer commentId,
+            @PathVariable("postId") Integer postId,
+            @PathVariable("commentId") Integer commentId,
             Authentication authentication) {
 
         UserPrincipal user = (UserPrincipal) authentication.getPrincipal();

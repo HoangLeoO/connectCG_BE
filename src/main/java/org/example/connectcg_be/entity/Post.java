@@ -95,4 +95,11 @@ public class Post {
     @JoinColumn(name = "approved_by_id")
     private User approvedBy;
 
+    @ColumnDefault("0")
+    @Column(name = "is_pinned")
+    private Boolean isPinned;
+
+    @Column(name = "pinned_at")
+    private Instant pinnedAt;
+
 }

@@ -333,4 +333,14 @@ public class GroupController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @PostMapping("/{id}/posts/{postId}/pin")
+    @PreAuthorize("hasRole('ADMIN') or @groupSecurity.isGroupAdmin(#id)")
+    public ResponseEntity<Void> togglePinPost(@PathVariable("id") Integer id,
+            @PathVariable("postId") Integer postId,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+        postService.togglePinPost(postId, userPrincipal.getId());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.OK).build();
+    }
 }
