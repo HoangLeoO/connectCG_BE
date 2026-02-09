@@ -14,6 +14,9 @@ import org.example.connectcg_be.repository.UserRepository;
 import org.example.connectcg_be.service.NotificationService;
 import org.example.connectcg_be.service.ReactionService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -36,6 +39,7 @@ public class ReactionServiceImpl implements ReactionService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public void reactToPost(Integer postId, Integer userId, String type) {
         // 1. Tạo Composite Key
         ReactionId id = new ReactionId(userId, postId);
@@ -59,9 +63,8 @@ public class ReactionServiceImpl implements ReactionService {
 
             reactionRepository.save(reaction);
 
-            // Cộng reactCount trong Post
-            post.setReactCount((post.getReactCount() != null ? post.getReactCount() : 0) + 1);
-            postRepository.save(post);
+            // Cộng reactCount trong Post - atomic update to prevent deadlock
+            postRepository.incrementReactCount(postId);
 
             // Gửi thông báo cho chủ bài viết
             if (!userId.equals(post.getAuthor().getId())) {
@@ -98,12 +101,8 @@ public class ReactionServiceImpl implements ReactionService {
         if (reactionRepository.existsById(id)) {
             reactionRepository.deleteById(id);
 
-            // Trừ reactCount trong Post
-            Post post = postRepository.findById(postId).orElse(null);
-            if (post != null && post.getReactCount() != null && post.getReactCount() > 0) {
-                post.setReactCount(post.getReactCount() - 1);
-                postRepository.save(post);
-            }
+            // Trừ reactCount trong Post - atomic update to prevent deadlock
+            postRepository.decrementReactCount(postId);
 
             // Broadcast realtime
             Post updatedPost = postRepository.findById(postId).orElse(null);
