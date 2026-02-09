@@ -2,6 +2,7 @@ package org.example.connectcg_be.repository;
 
 import org.example.connectcg_be.entity.Post;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,6 +11,24 @@ import java.util.List;
 
 @Repository
 public interface PostRepository extends JpaRepository<Post, Integer> {
+
+  // Atomic update methods to prevent deadlocks
+  @Modifying
+  @Query("UPDATE Post p SET p.commentCount = p.commentCount + 1 WHERE p.id = :postId")
+  void incrementCommentCount(@Param("postId") Integer postId);
+
+  @Modifying
+  @Query("UPDATE Post p SET p.commentCount = p.commentCount - 1 WHERE p.id = :postId AND p.commentCount > 0")
+  void decrementCommentCount(@Param("postId") Integer postId);
+
+  @Modifying
+  @Query("UPDATE Post p SET p.reactCount = p.reactCount + 1 WHERE p.id = :postId")
+  void incrementReactCount(@Param("postId") Integer postId);
+
+  @Modifying
+  @Query("UPDATE Post p SET p.reactCount = p.reactCount - 1 WHERE p.id = :postId AND p.reactCount > 0")
+  void decrementReactCount(@Param("postId") Integer postId);
+
   Integer countByAuthorIdAndIsDeletedFalse(Integer authorId);
 
   Integer countByAuthorIdAndStatusAndIsDeletedFalse(Integer authorId, String status);

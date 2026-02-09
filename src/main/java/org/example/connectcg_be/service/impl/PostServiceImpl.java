@@ -7,10 +7,13 @@ import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -224,6 +227,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public void approvePost(Integer postId, Integer adminId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
@@ -251,6 +255,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public void rejectPost(Integer postId, Integer adminId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
@@ -289,6 +294,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public Post createPost(CreatePostRequest request, boolean skipAiCheck,
             Integer userId) {
         User author = userRepository.findById(userId)
@@ -397,6 +403,7 @@ public class PostServiceImpl implements PostService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public Post updatePost(Integer postId, org.example.connectcg_be.dto.CreatePostRequest request, Integer userId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
