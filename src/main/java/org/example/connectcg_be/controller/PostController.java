@@ -1,6 +1,5 @@
 package org.example.connectcg_be.controller;
 
-import lombok.RequiredArgsConstructor;
 import org.example.connectcg_be.dto.CreatePostRequest;
 import org.example.connectcg_be.dto.GroupPostDTO;
 import org.example.connectcg_be.dto.ReactionRequest;
@@ -21,10 +20,10 @@ import java.util.List;
 @CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/posts")
-@RequiredArgsConstructor
 public class PostController {
 
-    private final org.example.connectcg_be.service.PostService postService;
+    @Autowired
+    private org.example.connectcg_be.service.PostService postService;
 
     @Autowired
     private ReactionService reactionService;
@@ -83,7 +82,7 @@ public class PostController {
 
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> approvePost(@PathVariable Integer id, Authentication authentication) {
+    public ResponseEntity<Void> approvePost(@PathVariable("id") Integer id, Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         postService.approvePost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
@@ -92,7 +91,7 @@ public class PostController {
     @PutMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Post> updatePost(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             @Valid @RequestBody CreatePostRequest request,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -103,7 +102,7 @@ public class PostController {
     @DeleteMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deletePost(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             @AuthenticationPrincipal UserPrincipal userPrincipal) {
         postService.deletePost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
@@ -112,7 +111,7 @@ public class PostController {
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> rejectPost(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         postService.rejectPost(id, userPrincipal.getId());
@@ -131,14 +130,15 @@ public class PostController {
     @DeleteMapping("/{id}/react")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> unReactToPost(
-            @PathVariable Integer id,
+            @PathVariable("id") Integer id,
             Authentication authentication) {
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         reactionService.unreactToPost(id, userPrincipal.getId());
         return ResponseEntity.ok().build();
     }
+
     @GetMapping("/{id}")
-    public ResponseEntity<GroupPostDTO> getPostById(@PathVariable Integer id) {
+    public ResponseEntity<GroupPostDTO> getPostById(@PathVariable("id") Integer id) {
         Integer currentUserId = null;
         try {
             return ResponseEntity.ok(postService.getPostById(id, currentUserId));

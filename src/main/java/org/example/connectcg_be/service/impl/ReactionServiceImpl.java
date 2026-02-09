@@ -7,7 +7,6 @@ import org.example.connectcg_be.entity.Post;
 import org.example.connectcg_be.entity.Reaction;
 import org.example.connectcg_be.entity.ReactionId;
 import org.example.connectcg_be.entity.User;
-import org.example.connectcg_be.entity.UserProfile;
 import org.example.connectcg_be.repository.PostRepository;
 import org.example.connectcg_be.repository.ReactionRepository;
 import org.example.connectcg_be.repository.UserRepository;

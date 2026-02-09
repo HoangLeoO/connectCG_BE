@@ -34,4 +34,6 @@ public class GroupPostDTO {
     private Integer commentCount;
     private Instant authorLockedUntil;
     private Boolean authorPermanentLocked;
+    private Boolean isPinned;
+    private Instant pinnedAt;
 }

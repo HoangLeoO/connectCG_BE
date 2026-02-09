@@ -2,6 +2,7 @@ package org.example.connectcg_be.service.impl;
 
 import org.example.connectcg_be.dto.ChatMemberDTO;
 import org.example.connectcg_be.dto.ChatRoomDTO;
+import org.example.connectcg_be.dto.ReadReceiptDTO;
 import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.ChatRoomService;
@@ -281,6 +282,7 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                     .fullName(fName)
                     .avatarUrl(aUrl)
                     .role(rm.getRole())
+                    .lastReadAt(rm.getLastReadAt())
                     .build();
         }).collect(Collectors.toList());
 
@@ -343,8 +345,32 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     public void markAsRead(Long roomId, User currentUser) {
         ChatRoomMember member = chatRoomMemberRepository.findByChatRoom_IdAndUser_Id(roomId, currentUser.getId())
                 .orElseThrow(() -> new RuntimeException("You are not a member of this room"));
-        member.setLastReadAt(Instant.now());
+
+        Instant now = Instant.now();
+        member.setLastReadAt(now);
         chatRoomMemberRepository.save(member);
+
+        // Broadcast READ_RECEIPT signal to the room's topic
+        ReadReceiptDTO receipt = ReadReceiptDTO.builder()
+                .roomId(roomId)
+                .firebaseRoomKey(member.getChatRoom().getFirebaseRoomKey())
+                .userId(currentUser.getId())
+                .lastReadAt(now)
+                .build();
+
+        messagingTemplate.convertAndSend(
+                "/topic/chat/" + receipt.getFirebaseRoomKey() + "/seen",
+                receipt);
+
+        // Also notify the current user to update their sidebar (unreadCount = 0)
+        ChatRoomDTO roomDto = convertToDTO(member.getChatRoom(), currentUser.getId());
+        messagingTemplate.convertAndSendToUser(
+                currentUser.getUsername(),
+                "/queue/chat",
+                Map.of(
+                        "type", "CHAT_UPDATE",
+                        "roomId", roomId,
+                        "data", roomDto));
     }
 
     @Override

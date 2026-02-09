@@ -53,7 +53,7 @@ public class UserProfileController {
     @GetMapping("/{userId}/profile")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserProfileDTO> getUserProfile(
-            @PathVariable Integer userId,
+            @PathVariable("userId") Integer userId,
             @AuthenticationPrincipal UserPrincipal currentUser) {
 
         System.out.println(currentUser.getId());

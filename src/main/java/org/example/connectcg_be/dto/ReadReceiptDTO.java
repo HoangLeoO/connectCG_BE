@@ -11,10 +11,9 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ChatMemberDTO {
-    private Integer id;
-    private String fullName;
-    private String avatarUrl;
-    private String role;
+public class ReadReceiptDTO {
+    private Long roomId;
+    private String firebaseRoomKey;
+    private Integer userId;
     private Instant lastReadAt;
 }

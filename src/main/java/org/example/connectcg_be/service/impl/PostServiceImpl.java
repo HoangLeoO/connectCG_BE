@@ -65,8 +65,9 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<GroupPostDTO> getPendingPosts(Integer groupId, Integer userId) {
-        List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
-                "PENDING");
+        List<Post> posts = postRepository
+                .findAllByGroupIdAndStatusAndIsDeletedFalseOrderByIsPinnedDescPinnedAtDescCreatedAtDesc(groupId,
+                        "PENDING");
         return posts.stream()
                 .map(post -> convertToDTO(post, userId))
                 .collect(Collectors.toList());
@@ -74,8 +75,9 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<GroupPostDTO> getApprovedPosts(Integer groupId, Integer userId) {
-        List<Post> posts = postRepository.findAllByGroupIdAndStatusAndIsDeletedFalseOrderByCreatedAtDesc(groupId,
-                "APPROVED");
+        List<Post> posts = postRepository
+                .findAllByGroupIdAndStatusAndIsDeletedFalseOrderByIsPinnedDescPinnedAtDescCreatedAtDesc(groupId,
+                        "APPROVED");
         return posts.stream()
                 .map(post -> convertToDTO(post, userId))
                 .collect(Collectors.toList());
@@ -197,6 +199,9 @@ public class PostServiceImpl implements PostService {
         // Count
         dto.setReactCount((long) (post.getReactCount() != null ? post.getReactCount() : 0));
         dto.setCommentCount(post.getCommentCount() != null ? post.getCommentCount() : 0);
+
+        dto.setIsPinned(post.getIsPinned());
+        dto.setPinnedAt(post.getPinnedAt());
 
         return dto;
     }
@@ -625,10 +630,41 @@ public class PostServiceImpl implements PostService {
 
         return false;
     }
+
     @Override
     public GroupPostDTO getPostById(Integer postId, Integer currentUserId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
         return convertToDTO(post, currentUserId);
+    }
+
+    @Override
+    @Transactional
+    public void togglePinPost(Integer postId, Integer userId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new RuntimeException("Bài viết không tồn tại"));
+
+        if (post.getGroup() == null) {
+            throw new RuntimeException("Chỉ có thể ghim bài viết trong nhóm");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
+
+        // Check if user is Admin or Group Owner/Admin
+        boolean isPrivileged = isPrivilegedUser(user, post.getGroup());
+        if (!isPrivileged) {
+            throw new RuntimeException("Bạn không có quyền ghim bài viết này");
+        }
+
+        boolean currentPinned = post.getIsPinned() != null && post.getIsPinned();
+        post.setIsPinned(!currentPinned);
+        post.setPinnedAt(!currentPinned ? Instant.now() : null);
+        postRepository.save(post);
+
+        // Broadcast realtime update
+        GroupPostDTO postDTO = convertToDTO(post, userId);
+        PostEventDTO event = new PostEventDTO("UPDATED", postDTO, post.getId());
+        messagingTemplate.convertAndSend("/topic/posts", event);
     }
 }
