@@ -34,6 +34,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-mysql'
+    implementation 'org.springframework.retry:spring-retry'
+    implementation 'org.springframework:spring-aspects'
 implementation 'com.sendgrid:sendgrid-java:4.10.2'
 
     // Source: https://mvnrepository.com/artifact/io.jsonwebtoken/jjwt-api

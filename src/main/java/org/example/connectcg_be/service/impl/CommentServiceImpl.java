@@ -8,6 +8,9 @@ import org.example.connectcg_be.entity.*;
 import org.example.connectcg_be.repository.*;
 import org.example.connectcg_be.service.CommentService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -114,6 +117,7 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     @Transactional
+    @Retryable(retryFor = CannotAcquireLockException.class, maxAttempts = 3, backoff = @Backoff(delay = 100))
     public CommentDTO createComment(Integer postId, Integer userId, CreateCommentRequest request) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy bài viết"));
@@ -191,13 +195,12 @@ public class CommentServiceImpl implements CommentService {
             notificationService.sendNotification(notification);
         }
 
-        // Cập nhật comment count của post
-        post.setCommentCount(post.getCommentCount() + 1);
-        postRepository.save(post);
+        // Cập nhật comment count của post - atomic update to prevent deadlock
+        postRepository.incrementCommentCount(postId);
 
         // Broadcast realtime AFTER commit
         CommentDTO dto = convertToDTO(saved);
-        final int newCommentCount = post.getCommentCount();
+        final int newCommentCount = post.getCommentCount() + 1; // Estimate for broadcast
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -224,14 +227,15 @@ public class CommentServiceImpl implements CommentService {
         comment.setIsDeleted(true);
         commentRepository.save(comment);
 
-        // Giảm comment count
+        // Lấy post để lấy thông tin cho broadcast
         Post post = comment.getPost();
-        post.setCommentCount(Math.max(0, post.getCommentCount() - 1));
-        postRepository.save(post);
+
+        // Giảm comment count - atomic update to prevent deadlock
+        postRepository.decrementCommentCount(post.getId());
 
         // Broadcast realtime AFTER commit
         final int postId = post.getId();
-        final int newCommentCount = post.getCommentCount();
+        final int newCommentCount = Math.max(0, post.getCommentCount() - 1); // Estimate for broadcast
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
