@@ -146,4 +146,18 @@ public class PostController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    @PostMapping("/{id}/share")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<GroupPostDTO> sharePost(
+            @PathVariable("id") Integer id,
+            @RequestBody CreatePostRequest request,
+            Authentication authentication) {
+        UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+
+        // Service đã trả về DTO luôn, rất gọn
+        GroupPostDTO sharedPostDTO = postService.sharePost(id, request, userPrincipal.getId());
+
+        return ResponseEntity.ok(sharedPostDTO);
+    }
 }

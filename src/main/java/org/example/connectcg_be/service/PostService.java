@@ -1,7 +1,10 @@
 package org.example.connectcg_be.service;
 
 import jakarta.transaction.Transactional;
+import org.example.connectcg_be.dto.CreatePostRequest;
 import org.example.connectcg_be.dto.GroupPostDTO;
+import org.example.connectcg_be.entity.Post;
+
 import java.util.List;
 
 public interface PostService {
@@ -46,4 +49,6 @@ public interface PostService {
         GroupPostDTO getPostById(Integer postId, Integer currentUserId);
 
         void togglePinPost(Integer postId, Integer userId);
+
+        GroupPostDTO sharePost(Integer originalPostId, CreatePostRequest request, Integer userId);
 }
