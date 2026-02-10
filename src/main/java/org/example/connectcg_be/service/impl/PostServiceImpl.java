@@ -685,7 +685,10 @@ public class PostServiceImpl implements PostService {
         Post originalPost = postRepository.findById(originalPostId)
                 .orElseThrow(() -> new RuntimeException("Bài viết gốc không tồn tại"));
 
-        if (originalPost != null) {
+        // Nếu bài viết này là bài share, thì lấy bài gốc thực sự (root post) của nó.
+        // Luôn đi tìm bài viết gốc cuối cùng để bài share luôn được gắn vào bài gốc
+        // thật sự.
+        while (originalPost.getOriginalPost() != null) {
             originalPost = originalPost.getOriginalPost();
         }
 
