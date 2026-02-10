@@ -8,10 +8,10 @@ import org.example.connectcg_be.service.GroupMemberService;
 import org.example.connectcg_be.service.PostService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.CannotAcquireLockException;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
@@ -130,6 +130,13 @@ public class PostServiceImpl implements PostService {
         dto.setCreatedAt(post.getCreatedAt());
         dto.setAuthorId(post.getAuthor().getId());
         dto.setAuthorName(post.getAuthor().getUsername());
+        dto.setShareCount(post.getShareCount() != null ? post.getShareCount() : 0);
+
+        if (post.getOriginalPost() != null) {
+            GroupPostDTO originalDto = convertToDTO(post.getOriginalPost(), currentUserId);
+            originalDto.setOriginalPost(null);// tranh loop
+            dto.setOriginalPost(originalDto);
+        }
 
         // Get Full Name
         userProfileRepository.findByUserId(post.getAuthor().getId()).ifPresent(profile -> {
@@ -330,8 +337,6 @@ public class PostServiceImpl implements PostService {
 
             post.setGroup(group);
         }
-
-        boolean isNewMemberModeration = false;
 
         // --- ADMIN & OWNER PRIVILEGE ---
         // Website Admins, Group Owners, and Group Admins bypass moderation
@@ -673,5 +678,92 @@ public class PostServiceImpl implements PostService {
         GroupPostDTO postDTO = convertToDTO(post, userId);
         PostEventDTO event = new PostEventDTO("UPDATED", postDTO, post.getId());
         messagingTemplate.convertAndSend("/topic/posts", event);
+    }
+
+    @Override
+    public GroupPostDTO sharePost(Integer originalPostId, CreatePostRequest request, Integer userId) {
+        Post originalPost = postRepository.findById(originalPostId)
+                .orElseThrow(() -> new RuntimeException("Bài viết gốc không tồn tại"));
+
+        if (originalPost != null) {
+            originalPost = originalPost.getOriginalPost();
+        }
+
+        User author = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng này"));
+
+        Post newPost = new Post();
+        newPost.setAuthor(author);
+        newPost.setContent(request.getContent()); // Caption của người share
+        newPost.setOriginalPost(originalPost); // Link tới bài gốc
+        newPost.setVisibility(request.getVisibility() != null ? request.getVisibility() : "PUBLIC");
+        newPost.setCreatedAt(Instant.now());
+        newPost.setUpdatedAt(Instant.now());
+        newPost.setIsDeleted(false);
+        newPost.setReactCount(0);
+        newPost.setCommentCount(0);
+        newPost.setShareCount(0);
+
+        if (request.getGroupId() != null) {
+            Group group = groupRepository.findById(request.getGroupId())
+                    .orElseThrow(() -> new RuntimeException("Group not found"));
+
+            // SECURITY: Check if user is an ACCEPTED member or owner/admin of the group
+            GroupMemberId memberId = new GroupMemberId();
+            memberId.setGroupId(group.getId());
+            memberId.setUserId(userId);
+            boolean isMember = groupMemberRepository.findById(memberId)
+                    .map(m -> "ACCEPTED".equals(m.getStatus()))
+                    .orElse(false);
+
+            if (!isMember && !group.getOwner().getId().equals(userId)) {
+                throw new RuntimeException("Bạn phải tham gia nhóm mới có thể đăng bài.");
+            }
+
+            newPost.setGroup(group);
+        }
+
+        AiModerationResult aiResult = aiModerationService.checkPostContent(request.getContent());
+        newPost.setCheckedAt(Instant.now());
+        newPost.setAiStatus(aiResult.getLabel());
+        newPost.setAiScore(aiResult.getScore());
+        newPost.setAiReason(aiResult.getReason());
+
+        // Unified threshold: < 0.6 is APPROVED, >= 0.6 is PENDING
+        // Note: Fail-Safe logic in AiModerationService returns 0.9 (PENDING) on
+        // error/toxic
+        if (aiResult.getScore() < 0.6) {
+            newPost.setStatus("APPROVED");
+        } else {
+            newPost.setStatus("PENDING");
+        }
+
+        Post savedPost = postRepository.save(newPost);
+
+        if (originalPost.getShareCount() == null) {
+            originalPost.setShareCount(1);
+        } else {
+            originalPost.setShareCount(originalPost.getShareCount() + 1);
+        }
+        postRepository.save(originalPost);
+
+        // Broadcast realtime update cho bài gốc (để cập nhật lượt share)
+        GroupPostDTO originalDto = convertToDTO(originalPost, userId);
+        PostEventDTO shareUpdateEvent = new PostEventDTO("UPDATED", originalDto, originalPost.getId());
+        messagingTemplate.convertAndSend("/topic/posts", shareUpdateEvent);
+
+        if (!originalPost.getAuthor().getId().equals(userId)) {
+            TungNotificationDTO notif = new TungNotificationDTO();
+            notif.setContent("đã chia sẻ bài viết của bạn.");
+            notif.setType("POST_SHARED");
+            notif.setTargetType("POST");
+            notif.setTargetId(newPost.getId());
+            try {
+                notificationService.sendNotification(notif, author, originalPost.getAuthor()); // From, To
+            } catch (Exception e) {
+                // ignore notification error
+            }
+        }
+        return convertToDTO(savedPost, userId);
     }
 }

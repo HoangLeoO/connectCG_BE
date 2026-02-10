@@ -75,6 +75,10 @@ public class Post {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_post_id")
+    private Post originalPost;
+
     /* ===== AI MODERATION ===== */
 
     @Column(name = "ai_score")
